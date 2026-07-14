@@ -141,6 +141,7 @@
             gap: 10px;
             transition: background 0.2s;
             -webkit-app-region: no-drag;
+            position: relative;
         }
         .link-item:hover {
             background: rgba(255,255,255,0.08);
@@ -165,6 +166,17 @@
             color: rgba(255,255,255,0.5);
             margin-right: 6px;
             flex-shrink: 0;
+        }
+        .link-error-icon {
+            color: #ff6b6b;
+            font-size: 16px;
+            margin-right: 4px;
+            cursor: help;
+            flex-shrink: 0;
+            display: none;
+        }
+        .link-error-icon.show {
+            display: inline;
         }
         .link-actions {
             display: flex;
@@ -298,7 +310,6 @@
             background: rgba(255,255,255,0.2);
         }
 
-        /* 设置区域 - 优化 */
         .settings-area {
             display: flex;
             flex-wrap: wrap;
@@ -424,7 +435,6 @@
             </div>
         </div>
 
-        <!-- 设置区域 -->
         <div class="settings-area">
             <label>
                 胶囊主题：
@@ -450,6 +460,13 @@
     <script>
         const { ipcRenderer } = require('electron');
 
+        // ESC 关闭窗口
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                window.close();
+            }
+        });
+
         const linkList = document.getElementById('linkList');
         const newLinkInput = document.getElementById('newLinkInput');
         const newNameInput = document.getElementById('newNameInput');
@@ -469,6 +486,9 @@
         let links = [];
         let currentManageTheme = 'dark';
         let editingIndex = -1;
+        let linkErrors = {};
+
+        console.log('manage-links.html 加载完成');
 
         // ---------- 管理窗口主题 ----------
         function applyManageTheme(theme) {
@@ -514,7 +534,7 @@
             ipcRenderer.send('set-capsule-theme', val);
         });
 
-        // ---------- 透明度滑块 (0~100 -> 0~1) ----------
+        // ---------- 透明度滑块 ----------
         ipcRenderer.on('capsule-opacity-changed', (e, opacity) => {
             const percent = Math.round(opacity * 100);
             opacitySlider.value = percent;
@@ -528,6 +548,12 @@
             ipcRenderer.send('set-capsule-opacity', opacity);
         });
 
+        // ---------- 错误更新 ----------
+        ipcRenderer.on('link-errors-updated', (e, errors) => {
+            linkErrors = errors || {};
+            renderLinks();
+        });
+
         // ---------- 渲染链接 ----------
         function renderLinks() {
             if (links.length === 0) {
@@ -537,11 +563,14 @@
             let html = '';
             links.forEach((link, index) => {
                 const shortUrl = link.url.length > 50 ? link.url.substring(0, 50) + '...' : link.url;
+                const hasError = linkErrors[link.url] !== undefined;
+                const errorTitle = hasError ? linkErrors[link.url] : '';
                 html += `
                     <div class="link-item" data-index="${index}">
                         <div class="link-color-dot" style="background:${link.color || '#4facfe'}" title="颜色"></div>
                         <span class="link-name">${link.name || '未命名'}</span>
                         <div class="link-url" title="${link.url}">${shortUrl}</div>
+                        <span class="link-error-icon ${hasError ? 'show' : ''}" title="${errorTitle}">⚠️</span>
                         <div class="link-actions">
                             <button class="edit" data-index="${index}" title="编辑">✎</button>
                             <button class="move-up" data-index="${index}" ${index === 0 ? 'disabled' : ''} title="上移">↑</button>
@@ -638,10 +667,12 @@
             }, 4000);
         }
 
-        // ---------- 导入导出 ----------
+        // ---------- 导出配置（直接使用 ipcRenderer.invoke） ----------
         exportBtn.addEventListener('click', async () => {
-            if (window.electronAPI && window.electronAPI.exportConfig) {
-                const result = await window.electronAPI.exportConfig();
+            console.log('🔘 导出按钮被点击');
+            try {
+                const result = await ipcRenderer.invoke('export-config');
+                console.log('📦 导出结果:', result);
                 if (result.success) {
                     showInfo(`配置已导出到 ${result.path}`, 'success');
                 } else if (result.canceled) {
@@ -649,12 +680,18 @@
                 } else {
                     showInfo(`导出失败: ${result.error}`, 'error');
                 }
+            } catch (err) {
+                console.error('❌ 导出异常:', err);
+                showInfo('导出异常: ' + err.message, 'error');
             }
         });
 
+        // ---------- 导入配置（直接使用 ipcRenderer.invoke） ----------
         importBtn.addEventListener('click', async () => {
-            if (window.electronAPI && window.electronAPI.importConfig) {
-                const result = await window.electronAPI.importConfig();
+            console.log('🔘 导入按钮被点击');
+            try {
+                const result = await ipcRenderer.invoke('import-config');
+                console.log('📦 导入结果:', result);
                 if (result.success) {
                     showInfo('配置导入成功，已自动刷新', 'success');
                 } else if (result.canceled) {
@@ -662,6 +699,9 @@
                 } else {
                     showInfo(`导入失败: ${result.error}`, 'error');
                 }
+            } catch (err) {
+                console.error('❌ 导入异常:', err);
+                showInfo('导入异常: ' + err.message, 'error');
             }
         });
 
@@ -722,9 +762,10 @@
                 opacitySlider.value = percent;
                 opacityValue.textContent = percent + '%';
             }
+            showInfo('配置已更新', 'success');
         });
 
-        // 初始化获取链接和设置
+        // 初始化
         ipcRenderer.send('get-links');
         ipcRenderer.on('capsule-theme-changed', (e, theme) => {
             themeSelect.value = theme || 'dark';
@@ -734,6 +775,14 @@
             opacitySlider.value = percent;
             opacityValue.textContent = percent + '%';
         });
+
+        // 主动请求错误
+        if (typeof ipcRenderer.invoke === 'function') {
+            ipcRenderer.invoke('get-link-errors').then(errors => {
+                linkErrors = errors || {};
+                renderLinks();
+            }).catch(() => {});
+        }
     </script>
 </body>
 </html>

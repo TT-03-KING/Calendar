@@ -10,7 +10,7 @@ let config = {
   links: [],
   capsuleTheme: 'dark',
   manageTheme: 'dark',
-  capsuleOpacity: 0.08, // 0~1
+  capsuleOpacity: 0.08,
 };
 let capsuleWindow = null;
 let manageWindow = null;
@@ -185,7 +185,6 @@ async function getCalendarData() {
     events: cachedEvents,
     theme: config.capsuleTheme,
     opacity: config.capsuleOpacity,
-    errors: linkErrors,
   };
   if (lastError) result.error = lastError;
   return result;
@@ -222,6 +221,7 @@ function openManageLinks() {
     manageWindow.webContents.send('manage-theme-changed', config.manageTheme);
     manageWindow.webContents.send('capsule-theme-changed', config.capsuleTheme);
     manageWindow.webContents.send('capsule-opacity-changed', config.capsuleOpacity);
+    manageWindow.webContents.send('link-errors-updated', linkErrors);
   });
 }
 
@@ -354,7 +354,7 @@ ipcMain.on('set-capsule-theme', (event, theme) => {
   }
 });
 
-// 透明度设置（接收0~1）
+// 透明度设置
 ipcMain.on('set-capsule-opacity', (event, opacity) => {
   const val = Math.min(1, Math.max(0, opacity));
   config.capsuleOpacity = val;
@@ -392,9 +392,13 @@ ipcMain.on('minimize-window', () => {
   }
 });
 
-// ---------- 导出配置 ----------
-ipcMain.handle('export-config', async () => {
-  const result = await dialog.showSaveDialog({
+// ---------- 导出配置（修复：直接使用 win 作为父窗口） ----------
+ipcMain.handle('export-config', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) {
+    return { success: false, error: '未找到窗口' };
+  }
+  const result = await dialog.showSaveDialog(win, {
     title: '导出配置',
     defaultPath: path.join(app.getPath('desktop'), 'tt-calendar-config.json'),
     filters: [{ name: 'JSON', extensions: ['json'] }]
@@ -410,9 +414,13 @@ ipcMain.handle('export-config', async () => {
   return { success: false, canceled: true };
 });
 
-// ---------- 导入配置 ----------
-ipcMain.handle('import-config', async () => {
-  const result = await dialog.showOpenDialog({
+// ---------- 导入配置（修复：直接使用 win 作为父窗口） ----------
+ipcMain.handle('import-config', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) {
+    return { success: false, error: '未找到窗口' };
+  }
+  const result = await dialog.showOpenDialog(win, {
     title: '导入配置',
     filters: [{ name: 'JSON', extensions: ['json'] }],
     properties: ['openFile']
@@ -482,23 +490,16 @@ function createCapsuleWindow() {
   });
 
   // ---------- 全局快捷键 ----------
-  // F10：切换显示/隐藏
   globalShortcut.register('F10', () => {
     if (capsuleWindow && !capsuleWindow.isDestroyed()) {
       if (capsuleWindow.isVisible()) capsuleWindow.hide();
       else { capsuleWindow.show(); capsuleWindow.focus(); }
     }
   });
-  // Ctrl+E：刷新
   globalShortcut.register('CommandOrControl+E', () => {
     updateCache();
   });
-  // ESC：关闭管理窗口
-  globalShortcut.register('Escape', () => {
-    if (manageWindow && !manageWindow.isDestroyed()) {
-      manageWindow.close();
-    }
-  });
+  // ESC 已在管理窗口内处理，不在此注册全局
 }
 
 // ---------- IPC 处理 ----------

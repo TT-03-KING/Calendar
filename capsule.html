@@ -92,33 +92,6 @@
             stroke-linejoin: round;
         }
 
-        .error-banner {
-            background: rgba(255, 107, 107, 0.15);
-            border: 1px solid rgba(255, 107, 107, 0.3);
-            border-radius: 12px;
-            padding: 6px 14px;
-            margin-bottom: 8px;
-            font-size: 13px;
-            color: #ff6b6b;
-            display: none;
-            cursor: pointer;
-            transition: 0.2s;
-            -webkit-app-region: no-drag;
-            flex-shrink: 0;
-        }
-        .error-banner:hover {
-            background: rgba(255, 107, 107, 0.25);
-        }
-        .error-banner .detail {
-            font-size: 12px;
-            color: rgba(255,255,255,0.6);
-            margin-top: 4px;
-            display: none;
-        }
-        .error-banner .detail.show {
-            display: block;
-        }
-
         /* 主题预设 */
         .theme-dark .app-title,
         .theme-dark .event-title,
@@ -137,7 +110,6 @@
         }
         .theme-dark .loc-icon { stroke: rgba(255,255,255,0.6); }
         .theme-dark .calendar-tag { color: rgba(255,255,255,0.6); }
-        .theme-dark .error-banner .detail { color: rgba(255,255,255,0.5); }
 
         .theme-light .app-title,
         .theme-light .event-title,
@@ -164,7 +136,6 @@
         }
         .theme-light .loc-icon { stroke: rgba(0,0,0,0.6); }
         .theme-light .calendar-tag { color: rgba(0,0,0,0.5); }
-        .theme-light .error-banner .detail { color: rgba(0,0,0,0.5); }
 
         .theme-warm .app-title,
         .theme-warm .event-title,
@@ -187,7 +158,6 @@
         }
         .theme-warm .calendar-tag { color: rgba(62,44,27,0.6); }
         .theme-warm .loc-icon { stroke: rgba(62,44,27,0.6); }
-        .theme-warm .error-banner .detail { color: rgba(62,44,27,0.5); }
 
         .theme-cool .app-title,
         .theme-cool .event-title,
@@ -210,7 +180,6 @@
         }
         .theme-cool .calendar-tag { color: rgba(11,43,58,0.6); }
         .theme-cool .loc-icon { stroke: rgba(11,43,58,0.6); }
-        .theme-cool .error-banner .detail { color: rgba(11,43,58,0.5); }
 
         .loc-icon {
             display: inline-block;
@@ -252,7 +221,6 @@
             flex-shrink: 0;
             transition: opacity 0.3s;
         }
-        /* 增强呼吸动画 */
         .color-dot.breathing {
             animation: breathe 1.6s ease-in-out infinite;
         }
@@ -368,11 +336,6 @@
             </div>
         </div>
 
-        <div class="error-banner" id="errorBanner">
-            <span id="errorSummary"></span>
-            <div class="detail" id="errorDetail"></div>
-        </div>
-
         <div class="content" id="content">
             <div class="no-events" id="displayArea">⏳ 加载中...</div>
         </div>
@@ -394,15 +357,11 @@
         const minimizeBtn = document.getElementById('minimizeBtn');
         const updateTimeEl = document.getElementById('updateTime');
         const contentEl = document.getElementById('content');
-        const errorBanner = document.getElementById('errorBanner');
-        const errorSummary = document.getElementById('errorSummary');
-        const errorDetail = document.getElementById('errorDetail');
 
         let currentTheme = 'dark';
         let currentOpacity = 0.08;
         let lastUpdateTime = null;
         let allEvents = [];
-        let linkErrors = {};
 
         // ---------- 应用主题 ----------
         function applyTheme(theme) {
@@ -425,14 +384,12 @@
             } else {
                 themeIcon.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`;
             }
-            // 重新应用透明度（因为背景色可能变化）
             applyOpacity(currentOpacity);
         }
 
-        // ---------- 应用透明度 (0~1) ----------
+        // ---------- 应用透明度 ----------
         function applyOpacity(opacity) {
             currentOpacity = Math.min(1, Math.max(0, opacity));
-            // 根据当前主题选择基础颜色
             let baseColor = '255,255,255';
             if (capsule.classList.contains('theme-warm')) baseColor = '245,222,179';
             else if (capsule.classList.contains('theme-cool')) baseColor = '173,216,230';
@@ -458,36 +415,16 @@
 
         themeToggle.addEventListener('click', toggleTheme);
 
-        // 监听主进程主题变化
         if (window.electronAPI && window.electronAPI.onCapsuleThemeChanged) {
             window.electronAPI.onCapsuleThemeChanged((event, theme) => {
                 applyTheme(theme);
                 applyOpacity(currentOpacity);
             });
         }
-
-        // 监听透明度变化
         if (window.electronAPI && window.electronAPI.onCapsuleOpacityChanged) {
             window.electronAPI.onCapsuleOpacityChanged((event, opacity) => {
                 applyOpacity(opacity);
             });
-        }
-
-        // ---------- 错误通知 ----------
-        function updateErrors(errors) {
-            linkErrors = errors || {};
-            const errList = Object.values(linkErrors);
-            if (errList.length === 0) {
-                errorBanner.style.display = 'none';
-                return;
-            }
-            errorBanner.style.display = 'block';
-            errorSummary.textContent = `⚠️ ${errList.length} 个日历获取失败，点击查看详情`;
-            errorDetail.textContent = errList.join('\n');
-            errorDetail.classList.remove('show');
-            errorBanner.onclick = () => {
-                errorDetail.classList.toggle('show');
-            };
         }
 
         // ---------- 更新时间 ----------
@@ -621,10 +558,6 @@
                     const events = result?.events || [];
                     renderEvents(events, Date.now());
                 }
-                if (window.electronAPI && window.electronAPI.getLinkErrors) {
-                    const errors = await window.electronAPI.getLinkErrors();
-                    updateErrors(errors);
-                }
             } catch(e) {
                 console.error('❌ update error:', e);
                 renderError('读取失败: ' + e.message);
@@ -641,14 +574,12 @@
             }
         }
 
-        // 监听主进程刷新完成
         if (window.electronAPI && window.electronAPI.onRefresh) {
             window.electronAPI.onRefresh(() => {
                 update();
             });
         }
 
-        // 按钮事件
         refreshBtn.addEventListener('click', manualRefresh);
         addLinkBtn.addEventListener('click', () => {
             if (window.electronAPI && window.electronAPI.openManageLinks) {
