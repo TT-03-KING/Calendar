@@ -16,7 +16,7 @@
             -webkit-app-region: drag;
         }
         .container {
-            width: 620px;
+            width: 660px;
             max-height: 95vh;
             background: rgba(255, 255, 255, 0.08);
             backdrop-filter: blur(24px);
@@ -29,6 +29,7 @@
             flex-direction: column;
             -webkit-app-region: drag;
             position: relative;
+            transition: background 0.3s ease;
         }
         .theme-toggle {
             position: absolute;
@@ -155,7 +156,7 @@
         }
         .link-url {
             flex: 1;
-            font-size: 14px;
+            font-size: 13px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -166,6 +167,10 @@
             color: rgba(255,255,255,0.5);
             margin-right: 6px;
             flex-shrink: 0;
+            max-width: 80px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .link-error-icon {
             color: #ff6b6b;
@@ -177,6 +182,18 @@
         }
         .link-error-icon.show {
             display: inline;
+        }
+        .link-type-badge {
+            font-size: 10px;
+            background: rgba(255,255,255,0.08);
+            padding: 2px 8px;
+            border-radius: 10px;
+            color: rgba(255,255,255,0.4);
+            flex-shrink: 0;
+        }
+        .theme-light .link-type-badge {
+            background: rgba(0,0,0,0.06);
+            color: rgba(0,0,0,0.3);
         }
         .link-actions {
             display: flex;
@@ -310,32 +327,34 @@
             background: rgba(255,255,255,0.2);
         }
 
+        /* 设置区域 - 所有元素等距居中 */
         .settings-area {
             display: flex;
             flex-wrap: wrap;
             align-items: center;
-            gap: 16px 24px;
+            justify-content: space-evenly;
+            gap: 8px 12px;
             background: rgba(255,255,255,0.04);
             border-radius: 20px;
-            padding: 14px 20px;
+            padding: 10px 12px;
             margin-top: 8px;
             -webkit-app-region: no-drag;
             width: 100%;
         }
         .settings-area label {
-            font-size: 13px;
+            font-size: 12px;
             opacity: 0.8;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 4px;
             flex: 0 1 auto;
         }
         .settings-area select {
             background: rgba(255,255,255,0.06);
             border: 1px solid rgba(255,255,255,0.10);
             border-radius: 30px;
-            padding: 6px 16px;
-            font-size: 13px;
+            padding: 3px 10px;
+            font-size: 12px;
             color: #fff;
             outline: none;
             cursor: pointer;
@@ -345,32 +364,56 @@
             color: #fff;
         }
         .settings-area input[type="range"] {
-            width: 140px;
+            width: 60px;
             accent-color: #4facfe;
             background: transparent;
             cursor: pointer;
         }
         .settings-area .opacity-value {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 500;
-            min-width: 40px;
+            min-width: 30px;
             text-align: center;
         }
-        .settings-area .btn-export,
-        .settings-area .btn-import {
+        /* 三按钮等宽 */
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            flex: 0 1 auto;
+        }
+        .btn-group .btn-action {
+            flex: 1;
+            min-width: 80px;
+            max-width: 120px;
+            text-align: center;
             background: rgba(255,255,255,0.08);
             border: 1px solid rgba(255,255,255,0.10);
             border-radius: 30px;
-            padding: 6px 18px;
-            font-size: 13px;
+            padding: 5px 8px;
+            font-size: 12px;
             color: inherit;
             cursor: pointer;
             transition: 0.2s;
             -webkit-app-region: no-drag;
+            white-space: nowrap;
         }
-        .settings-area .btn-export:hover,
-        .settings-area .btn-import:hover {
-            background: rgba(255,255,255,0.16);
+        .btn-group .btn-action:hover {
+            background: rgba(255,255,255,0.18);
+        }
+        .btn-group .btn-action.btn-primary {
+            background: #4facfe;
+            color: #fff;
+            border-color: #4facfe;
+        }
+        .btn-group .btn-action.btn-primary:hover {
+            background: #3d8ee6;
+        }
+        .theme-light .btn-group .btn-action {
+            background: rgba(0,0,0,0.06);
+            border-color: rgba(0,0,0,0.08);
+        }
+        .theme-light .btn-group .btn-action:hover {
+            background: rgba(0,0,0,0.12);
         }
 
         .info {
@@ -400,21 +443,26 @@
 </head>
 <body>
     <div class="container" id="container">
+        <!-- 主题切换按钮 -->
         <div class="theme-toggle" id="themeToggle" title="切换管理窗口主题">
             <svg viewBox="0 0 24 24" id="themeIcon">
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
             </svg>
         </div>
+
         <div class="title">📅 日历管理</div>
         <div class="sub">支持 webcal:// 或 https:// 开头的共享链接</div>
+
+        <!-- 链接列表 -->
         <div class="link-list" id="linkList"></div>
 
+        <!-- 添加区域 -->
         <div class="add-area">
             <div class="url-row">
                 <input type="text" id="newLinkInput" placeholder="webcal:// 或 https:// ..." />
             </div>
             <div class="name-color-row">
-                <input type="text" id="newNameInput" placeholder="日历名称（如 个人）" class="name-input" />
+                <input type="text" id="newNameInput" placeholder="日历名称" class="name-input" />
                 <div class="color-picker-wrapper">
                     <input type="color" id="newColorInput" value="#4facfe" />
                     <svg class="palette-icon" viewBox="0 0 24 24">
@@ -435,9 +483,10 @@
             </div>
         </div>
 
+        <!-- 设置区域 - 全部等距居中 -->
         <div class="settings-area">
             <label>
-                胶囊主题：
+                主题：
                 <select id="themeSelect">
                     <option value="dark">暗色</option>
                     <option value="light">亮色</option>
@@ -446,27 +495,37 @@
                 </select>
             </label>
             <label>
-                透明度：
+                胶囊透明度：
                 <input type="range" id="opacitySlider" min="0" max="100" step="1" value="8" />
                 <span class="opacity-value" id="opacityValue">8%</span>
             </label>
-            <button class="btn-export" id="exportBtn">📤 导出配置</button>
-            <button class="btn-import" id="importBtn">📥 导入配置</button>
+            <label>
+                窗口透明度：
+                <input type="range" id="manageOpacitySlider" min="0" max="100" step="1" value="100" />
+                <span class="opacity-value" id="manageOpacityValue">100%</span>
+            </label>
+            <div class="btn-group">
+                <button class="btn-action" id="exportBtn">📤 导出</button>
+                <button class="btn-action" id="importBtn">📥 导入</button>
+                <button class="btn-action btn-primary" id="importIcsBtn">📂 ICS</button>
+            </div>
         </div>
 
         <div class="info" id="infoMsg"></div>
     </div>
 
     <script>
+        const path = require('path');
         const { ipcRenderer } = require('electron');
 
-        // ESC 关闭窗口
+        // ---------- ESC 关闭窗口 ----------
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 window.close();
             }
         });
 
+        const container = document.getElementById('container');
         const linkList = document.getElementById('linkList');
         const newLinkInput = document.getElementById('newLinkInput');
         const newNameInput = document.getElementById('newNameInput');
@@ -474,21 +533,39 @@
         const addBtn = document.getElementById('addBtn');
         const cancelEditBtn = document.getElementById('cancelEditBtn');
         const infoMsg = document.getElementById('infoMsg');
-        const container = document.getElementById('container');
         const themeToggle = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
         const themeSelect = document.getElementById('themeSelect');
         const opacitySlider = document.getElementById('opacitySlider');
         const opacityValue = document.getElementById('opacityValue');
+        const manageOpacitySlider = document.getElementById('manageOpacitySlider');
+        const manageOpacityValue = document.getElementById('manageOpacityValue');
         const exportBtn = document.getElementById('exportBtn');
         const importBtn = document.getElementById('importBtn');
+        const importIcsBtn = document.getElementById('importIcsBtn');
 
         let links = [];
         let currentManageTheme = 'dark';
         let editingIndex = -1;
         let linkErrors = {};
+        let currentManageOpacity = 1.0;
 
         console.log('manage-links.html 加载完成');
+
+        // ---------- 获取当前主题的基础颜色 ----------
+        function getBaseColor(theme) {
+            if (theme === 'light') return '255,255,255';
+            if (theme === 'warm') return '245,222,179';
+            if (theme === 'cool') return '173,216,230';
+            return '255,255,255'; // dark 默认
+        }
+
+        // ---------- 应用管理窗口透明度（背景透明度） ----------
+        function applyManageOpacity(opacity, theme) {
+            currentManageOpacity = Math.min(1, Math.max(0, opacity));
+            const baseColor = getBaseColor(theme || currentManageTheme);
+            container.style.background = `rgba(${baseColor}, ${currentManageOpacity})`;
+        }
 
         // ---------- 管理窗口主题 ----------
         function applyManageTheme(theme) {
@@ -510,6 +587,8 @@
                     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
                 `;
             }
+            // 重新应用透明度（因为背景色变了）
+            applyManageOpacity(currentManageOpacity, theme);
         }
 
         function toggleManageTheme() {
@@ -534,7 +613,7 @@
             ipcRenderer.send('set-capsule-theme', val);
         });
 
-        // ---------- 透明度滑块 ----------
+        // ---------- 胶囊透明度 ----------
         ipcRenderer.on('capsule-opacity-changed', (e, opacity) => {
             const percent = Math.round(opacity * 100);
             opacitySlider.value = percent;
@@ -548,6 +627,22 @@
             ipcRenderer.send('set-capsule-opacity', opacity);
         });
 
+        // ---------- 管理窗口透明度（背景透明度） ----------
+        ipcRenderer.on('manage-opacity-changed', (e, opacity) => {
+            const percent = Math.round(opacity * 100);
+            manageOpacitySlider.value = percent;
+            manageOpacityValue.textContent = percent + '%';
+            applyManageOpacity(opacity, currentManageTheme);
+        });
+
+        manageOpacitySlider.addEventListener('input', () => {
+            const percent = parseInt(manageOpacitySlider.value);
+            manageOpacityValue.textContent = percent + '%';
+            const opacity = percent / 100;
+            applyManageOpacity(opacity, currentManageTheme);
+            ipcRenderer.send('set-manage-opacity', opacity);
+        });
+
         // ---------- 错误更新 ----------
         ipcRenderer.on('link-errors-updated', (e, errors) => {
             linkErrors = errors || {};
@@ -556,25 +651,35 @@
 
         // ---------- 渲染链接 ----------
         function renderLinks() {
+            console.log('🔄 renderLinks 被调用，当前 links:', links);
             if (links.length === 0) {
                 linkList.innerHTML = `<div style="text-align:center;color:rgba(255,255,255,0.3);padding:20px 0;">暂无链接，请添加</div>`;
                 return;
             }
             let html = '';
             links.forEach((link, index) => {
-                const shortUrl = link.url.length > 50 ? link.url.substring(0, 50) + '...' : link.url;
-                const hasError = linkErrors[link.url] !== undefined;
-                const errorTitle = hasError ? linkErrors[link.url] : '';
+                const isLocal = link.type === 'local';
+                const displayName = link.name || '未命名';
+                let shortUrl = '';
+                if (isLocal) {
+                    shortUrl = link.filePath ? path.basename(link.filePath) : '本地文件';
+                } else {
+                    shortUrl = link.url ? (link.url.length > 40 ? link.url.substring(0, 40) + '...' : link.url) : '';
+                }
+                const hasError = linkErrors[link.url || link.filePath] !== undefined;
+                const errorTitle = hasError ? linkErrors[link.url || link.filePath] : '';
+                const typeLabel = isLocal ? '📁本地' : '🌐网络';
                 html += `
                     <div class="link-item" data-index="${index}">
                         <div class="link-color-dot" style="background:${link.color || '#4facfe'}" title="颜色"></div>
-                        <span class="link-name">${link.name || '未命名'}</span>
-                        <div class="link-url" title="${link.url}">${shortUrl}</div>
+                        <span class="link-name" title="${displayName}">${displayName}</span>
+                        <div class="link-url" title="${link.url || link.filePath || ''}">${shortUrl}</div>
+                        <span class="link-type-badge">${typeLabel}</span>
                         <span class="link-error-icon ${hasError ? 'show' : ''}" title="${errorTitle}">⚠️</span>
                         <div class="link-actions">
                             <button class="edit" data-index="${index}" title="编辑">✎</button>
-                            <button class="move-up" data-index="${index}" ${index === 0 ? 'disabled' : ''} title="上移">↑</button>
-                            <button class="move-down" data-index="${index}" ${index === links.length - 1 ? 'disabled' : ''} title="下移">↓</button>
+                            ${!isLocal ? `<button class="move-up" data-index="${index}" ${index === 0 ? 'disabled' : ''} title="上移">↑</button>
+                            <button class="move-down" data-index="${index}" ${index === links.length - 1 ? 'disabled' : ''} title="下移">↓</button>` : ''}
                             <button class="delete" data-index="${index}" title="删除">✕</button>
                         </div>
                     </div>
@@ -607,7 +712,14 @@
             linkList.querySelectorAll('.delete').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const idx = parseInt(btn.dataset.index);
-                    ipcRenderer.send('remove-link', idx);
+                    const link = links[idx];
+                    const confirmMsg = link.type === 'local' 
+                        ? `确定要删除本地日历 "${link.name}" 吗？对应的 ICS 文件也将被删除。`
+                        : `确定要删除日历 "${link.name}" 吗？`;
+                    if (confirm(confirmMsg)) {
+                        ipcRenderer.send('remove-link', idx);
+                        ipcRenderer.send('get-links');
+                    }
                 });
             });
         }
@@ -617,7 +729,13 @@
             const link = links[index];
             if (!link) return;
             editingIndex = index;
-            newLinkInput.value = link.url;
+            if (link.type === 'local') {
+                newLinkInput.value = '[本地文件] ' + (link.filePath ? path.basename(link.filePath) : '');
+                newLinkInput.disabled = true;
+            } else {
+                newLinkInput.value = link.url || '';
+                newLinkInput.disabled = false;
+            }
             newNameInput.value = link.name || '';
             newColorInput.value = link.color || '#4facfe';
             addBtn.textContent = '更新';
@@ -627,6 +745,7 @@
         function cancelEdit() {
             editingIndex = -1;
             newLinkInput.value = '';
+            newLinkInput.disabled = false;
             newNameInput.value = '';
             newColorInput.value = '#4facfe';
             addBtn.textContent = '添加';
@@ -640,6 +759,15 @@
             const url = newLinkInput.value.trim();
             const name = newNameInput.value.trim() || '未命名';
             const color = newColorInput.value;
+
+            if (editingIndex !== -1) {
+                const link = links[editingIndex];
+                if (link.type === 'local') {
+                    ipcRenderer.send('update-link', editingIndex, link.url || link.filePath, name, color);
+                    cancelEdit();
+                    return;
+                }
+            }
 
             if (!url || !(url.startsWith('webcal://') || url.startsWith('https://'))) {
                 showInfo('链接必须以 webcal:// 或 https:// 开头', 'error');
@@ -667,14 +795,14 @@
             }, 4000);
         }
 
-        // ---------- 导出配置（直接使用 ipcRenderer.invoke） ----------
+        // ---------- 导出配置 ----------
         exportBtn.addEventListener('click', async () => {
-            console.log('🔘 导出按钮被点击');
+            console.log('🔘 导出配置被点击');
             try {
                 const result = await ipcRenderer.invoke('export-config');
                 console.log('📦 导出结果:', result);
                 if (result.success) {
-                    showInfo(`配置已导出到 ${result.path}`, 'success');
+                    showInfo(`✅ 配置已导出到 ${result.path}`, 'success');
                 } else if (result.canceled) {
                     showInfo('导出已取消', '');
                 } else {
@@ -686,14 +814,14 @@
             }
         });
 
-        // ---------- 导入配置（直接使用 ipcRenderer.invoke） ----------
+        // ---------- 导入配置 ----------
         importBtn.addEventListener('click', async () => {
-            console.log('🔘 导入按钮被点击');
+            console.log('🔘 导入配置被点击');
             try {
                 const result = await ipcRenderer.invoke('import-config');
                 console.log('📦 导入结果:', result);
                 if (result.success) {
-                    showInfo('配置导入成功，已自动刷新', 'success');
+                    showInfo('✅ 配置导入成功，已自动刷新', 'success');
                 } else if (result.canceled) {
                     showInfo('导入已取消', '');
                 } else {
@@ -705,21 +833,49 @@
             }
         });
 
+        // ---------- 导入 ICS 文件 ----------
+        importIcsBtn.addEventListener('click', async () => {
+            console.log('🔘 导入 ICS 文件被点击');
+            try {
+                const result = await ipcRenderer.invoke('import-ics');
+                console.log('📦 导入结果:', result);
+                if (result.success) {
+                    showInfo(`✅ 成功导入 "${result.link.name}"，已自动刷新`, 'success');
+                    ipcRenderer.send('get-links');
+                } else if (result.canceled) {
+                    showInfo('导入已取消', '');
+                } else {
+                    showInfo(`导入失败: ${result.error}`, 'error');
+                }
+            } catch (err) {
+                console.error('❌ 导入 ICS 异常:', err);
+                showInfo('导入异常: ' + err.message, 'error');
+            }
+        });
+
         // ---------- IPC 事件 ----------
         ipcRenderer.on('load-links', (e, data) => {
+            console.log('📥 收到 load-links 事件，数据:', data);
             links = data || [];
             renderLinks();
             if (editingIndex !== -1 && editingIndex >= links.length) cancelEdit();
         });
 
         ipcRenderer.on('links-updated', (e, data) => {
+            console.log('📥 收到 links-updated 事件，数据:', data);
             links = data;
             renderLinks();
             showInfo('链接已更新', 'success');
             if (editingIndex !== -1 && editingIndex < links.length) {
                 const link = links[editingIndex];
                 if (link) {
-                    newLinkInput.value = link.url;
+                    if (link.type === 'local') {
+                        newLinkInput.value = '[本地文件] ' + (link.filePath ? path.basename(link.filePath) : '');
+                        newLinkInput.disabled = true;
+                    } else {
+                        newLinkInput.value = link.url || '';
+                        newLinkInput.disabled = false;
+                    }
                     newNameInput.value = link.name || '';
                     newColorInput.value = link.color || '#4facfe';
                 } else {
@@ -749,6 +905,7 @@
             }
         });
 
+        // 配置导入后更新
         ipcRenderer.on('config-imported', (e, config) => {
             if (config.links) {
                 links = config.links;
@@ -761,6 +918,12 @@
                 const percent = Math.round(config.capsuleOpacity * 100);
                 opacitySlider.value = percent;
                 opacityValue.textContent = percent + '%';
+            }
+            if (typeof config.manageOpacity === 'number') {
+                const percent = Math.round(config.manageOpacity * 100);
+                manageOpacitySlider.value = percent;
+                manageOpacityValue.textContent = percent + '%';
+                applyManageOpacity(config.manageOpacity, currentManageTheme);
             }
             showInfo('配置已更新', 'success');
         });
@@ -775,14 +938,12 @@
             opacitySlider.value = percent;
             opacityValue.textContent = percent + '%';
         });
-
-        // 主动请求错误
-        if (typeof ipcRenderer.invoke === 'function') {
-            ipcRenderer.invoke('get-link-errors').then(errors => {
-                linkErrors = errors || {};
-                renderLinks();
-            }).catch(() => {});
-        }
+        ipcRenderer.on('manage-opacity-changed', (e, opacity) => {
+            const percent = Math.round(opacity * 100);
+            manageOpacitySlider.value = percent;
+            manageOpacityValue.textContent = percent + '%';
+            applyManageOpacity(opacity, currentManageTheme);
+        });
     </script>
 </body>
 </html>

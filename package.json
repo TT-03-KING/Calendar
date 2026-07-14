@@ -1,6 +1,6 @@
 {
   "name": "tt-calendar",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -11,7 +11,9 @@
     "electron-builder": "^24.13.3"
   },
   "dependencies": {
-    "ical": "^0.8.0"
+    "axios": "^1.18.1",
+    "ical": "^0.8.0",
+    "rrule": "^2.8.1"
   },
   "build": {
     "appId": "com.tt.calendar",
