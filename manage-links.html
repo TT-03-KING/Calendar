@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>日历管理</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%;
+            height: 100%;
+            background: transparent !important;
+            font-family: -apple-system, 'Segoe UI', 'PingFang SC', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-app-region: drag;
+        }
+        .container {
+            width: 620px;
+            max-height: 95vh;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-radius: 40px;
+            border: 1px solid rgba(255,255,255,0.06);
+            padding: 28px 24px;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            -webkit-app-region: drag;
+            position: relative;
+        }
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 24px;
+            -webkit-app-region: no-drag;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.08);
+            transition: background 0.2s;
+            color: #fff;
+        }
+        .theme-toggle:hover {
+            background: rgba(255,255,255,0.12);
+        }
+        .theme-toggle svg {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .theme-light .container {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(24px);
+            border-color: rgba(0,0,0,0.06);
+            color: #1a1a2e;
+        }
+        .theme-light .title,
+        .theme-light .sub,
+        .theme-light .link-url,
+        .theme-light .link-item,
+        .theme-light .info {
+            color: #1a1a2e;
+        }
+        .theme-light .sub { color: rgba(0,0,0,0.5); }
+        .theme-light .link-item {
+            background: rgba(0,0,0,0.04);
+        }
+        .theme-light .link-item:hover {
+            background: rgba(0,0,0,0.08);
+        }
+        .theme-light .link-actions button {
+            color: rgba(0,0,0,0.4);
+        }
+        .theme-light .link-actions button:hover {
+            background: rgba(0,0,0,0.08);
+        }
+        .theme-light .add-area input,
+        .theme-light .add-area .color-picker-wrapper,
+        .theme-light .settings-area select,
+        .theme-light .settings-area input[type="range"] {
+            background: rgba(0,0,0,0.04);
+            border-color: rgba(0,0,0,0.08);
+            color: #1a1a2e;
+        }
+        .theme-light .settings-area label {
+            color: rgba(0,0,0,0.7);
+        }
+        .theme-light .add-area input::placeholder {
+            color: rgba(0,0,0,0.3);
+        }
+        .theme-light .theme-toggle {
+            color: #1a1a2e;
+            background: rgba(0,0,0,0.04);
+            border-color: rgba(0,0,0,0.06);
+        }
+        .theme-light .theme-toggle:hover {
+            background: rgba(0,0,0,0.08);
+        }
+        .theme-light .info.error { color: #ff6b6b; }
+        .theme-light .info.success { color: #4fdf7f; }
+
+        .title {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            text-align: center;
+            -webkit-app-region: no-drag;
+        }
+        .sub {
+            font-size: 14px;
+            color: rgba(255,255,255,0.5);
+            text-align: center;
+            margin-bottom: 16px;
+            -webkit-app-region: no-drag;
+        }
+        .link-list {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 16px;
+            max-height: 280px;
+            -webkit-app-region: no-drag;
+        }
+        .link-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 20px;
+            gap: 10px;
+            transition: background 0.2s;
+            -webkit-app-region: no-drag;
+        }
+        .link-item:hover {
+            background: rgba(255,255,255,0.08);
+        }
+        .link-color-dot {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .link-url {
+            flex: 1;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: rgba(255,255,255,0.8);
+        }
+        .link-name {
+            font-size: 13px;
+            color: rgba(255,255,255,0.5);
+            margin-right: 6px;
+            flex-shrink: 0;
+        }
+        .link-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .link-actions button {
+            background: rgba(255,255,255,0.06);
+            border: none;
+            border-radius: 30px;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: rgba(255,255,255,0.6);
+            transition: background 0.2s;
+            font-size: 16px;
+            -webkit-app-region: no-drag;
+        }
+        .link-actions button:hover {
+            background: rgba(255,255,255,0.14);
+        }
+        .link-actions button.delete:hover {
+            color: #ff6b6b;
+        }
+        .link-actions button.edit:hover {
+            color: #4facfe;
+        }
+
+        .add-area {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            -webkit-app-region: no-drag;
+            margin-bottom: 12px;
+        }
+        .url-row input {
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 40px;
+            padding: 12px 18px;
+            font-size: 14px;
+            color: #fff;
+            outline: none;
+            transition: border 0.2s;
+            -webkit-app-region: no-drag;
+        }
+        .url-row input:focus {
+            border-color: rgba(255,255,255,0.25);
+        }
+        .url-row input::placeholder {
+            color: rgba(255,255,255,0.3);
+        }
+        .name-color-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .name-color-row .name-input {
+            flex: 1;
+            min-width: 100px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 40px;
+            padding: 12px 18px;
+            font-size: 14px;
+            color: #fff;
+            outline: none;
+            transition: border 0.2s;
+            -webkit-app-region: no-drag;
+        }
+        .name-color-row .name-input:focus {
+            border-color: rgba(255,255,255,0.25);
+        }
+        .name-color-row .name-input::placeholder {
+            color: rgba(255,255,255,0.3);
+        }
+        .color-picker-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 40px;
+            padding: 4px 12px 4px 6px;
+            border: 1px solid rgba(255,255,255,0.10);
+            flex-shrink: 0;
+        }
+        .color-picker-wrapper input[type="color"] {
+            width: 32px;
+            height: 32px;
+            border: none;
+            padding: 0;
+            background: transparent;
+            cursor: pointer;
+            -webkit-app-region: no-drag;
+        }
+        .color-picker-wrapper .palette-icon {
+            width: 20px;
+            height: 20px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            opacity: 0.6;
+        }
+        .name-color-row .action-btn {
+            background: #4facfe;
+            border: none;
+            border-radius: 40px;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.2s;
+            -webkit-app-region: no-drag;
+            flex-shrink: 0;
+        }
+        .name-color-row .action-btn:hover {
+            background: #3d8ee6;
+        }
+        .name-color-row .action-btn.cancel-btn {
+            background: rgba(255,255,255,0.1);
+        }
+        .name-color-row .action-btn.cancel-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* 设置区域 - 优化 */
+        .settings-area {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 16px 24px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 20px;
+            padding: 14px 20px;
+            margin-top: 8px;
+            -webkit-app-region: no-drag;
+            width: 100%;
+        }
+        .settings-area label {
+            font-size: 13px;
+            opacity: 0.8;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 0 1 auto;
+        }
+        .settings-area select {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 30px;
+            padding: 6px 16px;
+            font-size: 13px;
+            color: #fff;
+            outline: none;
+            cursor: pointer;
+        }
+        .settings-area select option {
+            background: #222;
+            color: #fff;
+        }
+        .settings-area input[type="range"] {
+            width: 140px;
+            accent-color: #4facfe;
+            background: transparent;
+            cursor: pointer;
+        }
+        .settings-area .opacity-value {
+            font-size: 13px;
+            font-weight: 500;
+            min-width: 40px;
+            text-align: center;
+        }
+        .settings-area .btn-export,
+        .settings-area .btn-import {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 30px;
+            padding: 6px 18px;
+            font-size: 13px;
+            color: inherit;
+            cursor: pointer;
+            transition: 0.2s;
+            -webkit-app-region: no-drag;
+        }
+        .settings-area .btn-export:hover,
+        .settings-area .btn-import:hover {
+            background: rgba(255,255,255,0.16);
+        }
+
+        .info {
+            font-size: 13px;
+            color: rgba(255,255,255,0.3);
+            text-align: center;
+            margin-top: 8px;
+            -webkit-app-region: no-drag;
+        }
+        .info.error {
+            color: #ff6b6b;
+        }
+        .info.success {
+            color: #4fdf7f;
+        }
+        .link-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .link-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .link-list::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="container">
+        <div class="theme-toggle" id="themeToggle" title="切换管理窗口主题">
+            <svg viewBox="0 0 24 24" id="themeIcon">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+        </div>
+        <div class="title">📅 日历管理</div>
+        <div class="sub">支持 webcal:// 或 https:// 开头的共享链接</div>
+        <div class="link-list" id="linkList"></div>
+
+        <div class="add-area">
+            <div class="url-row">
+                <input type="text" id="newLinkInput" placeholder="webcal:// 或 https:// ..." />
+            </div>
+            <div class="name-color-row">
+                <input type="text" id="newNameInput" placeholder="日历名称（如 个人）" class="name-input" />
+                <div class="color-picker-wrapper">
+                    <input type="color" id="newColorInput" value="#4facfe" />
+                    <svg class="palette-icon" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" />
+                        <circle cx="12" cy="12" r="3" fill="currentColor" />
+                        <line x1="12" y1="2" x2="12" y2="4" />
+                        <line x1="12" y1="20" x2="12" y2="22" />
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                        <line x1="2" y1="12" x2="4" y2="12" />
+                        <line x1="20" y1="12" x2="22" y2="12" />
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                    </svg>
+                </div>
+                <button id="addBtn" class="action-btn">添加</button>
+                <button id="cancelEditBtn" class="action-btn cancel-btn" style="display:none;">取消</button>
+            </div>
+        </div>
+
+        <!-- 设置区域 -->
+        <div class="settings-area">
+            <label>
+                胶囊主题：
+                <select id="themeSelect">
+                    <option value="dark">暗色</option>
+                    <option value="light">亮色</option>
+                    <option value="warm">暖色</option>
+                    <option value="cool">冷色</option>
+                </select>
+            </label>
+            <label>
+                透明度：
+                <input type="range" id="opacitySlider" min="0" max="100" step="1" value="8" />
+                <span class="opacity-value" id="opacityValue">8%</span>
+            </label>
+            <button class="btn-export" id="exportBtn">📤 导出配置</button>
+            <button class="btn-import" id="importBtn">📥 导入配置</button>
+        </div>
+
+        <div class="info" id="infoMsg"></div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        const linkList = document.getElementById('linkList');
+        const newLinkInput = document.getElementById('newLinkInput');
+        const newNameInput = document.getElementById('newNameInput');
+        const newColorInput = document.getElementById('newColorInput');
+        const addBtn = document.getElementById('addBtn');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        const infoMsg = document.getElementById('infoMsg');
+        const container = document.getElementById('container');
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const themeSelect = document.getElementById('themeSelect');
+        const opacitySlider = document.getElementById('opacitySlider');
+        const opacityValue = document.getElementById('opacityValue');
+        const exportBtn = document.getElementById('exportBtn');
+        const importBtn = document.getElementById('importBtn');
+
+        let links = [];
+        let currentManageTheme = 'dark';
+        let editingIndex = -1;
+
+        // ---------- 管理窗口主题 ----------
+        function applyManageTheme(theme) {
+            currentManageTheme = theme;
+            document.body.classList.remove('theme-light', 'theme-dark');
+            document.body.classList.add(`theme-${theme}`);
+            if (theme === 'dark') {
+                themeIcon.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`;
+            } else {
+                themeIcon.innerHTML = `
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                `;
+            }
+        }
+
+        function toggleManageTheme() {
+            const newTheme = currentManageTheme === 'dark' ? 'light' : 'dark';
+            applyManageTheme(newTheme);
+            ipcRenderer.send('set-manage-theme', newTheme);
+        }
+
+        themeToggle.addEventListener('click', toggleManageTheme);
+
+        ipcRenderer.on('manage-theme-changed', (e, theme) => {
+            applyManageTheme(theme);
+        });
+
+        // ---------- 胶囊主题下拉 ----------
+        ipcRenderer.on('capsule-theme-changed', (e, theme) => {
+            themeSelect.value = theme || 'dark';
+        });
+
+        themeSelect.addEventListener('change', () => {
+            const val = themeSelect.value;
+            ipcRenderer.send('set-capsule-theme', val);
+        });
+
+        // ---------- 透明度滑块 (0~100 -> 0~1) ----------
+        ipcRenderer.on('capsule-opacity-changed', (e, opacity) => {
+            const percent = Math.round(opacity * 100);
+            opacitySlider.value = percent;
+            opacityValue.textContent = percent + '%';
+        });
+
+        opacitySlider.addEventListener('input', () => {
+            const percent = parseInt(opacitySlider.value);
+            opacityValue.textContent = percent + '%';
+            const opacity = percent / 100;
+            ipcRenderer.send('set-capsule-opacity', opacity);
+        });
+
+        // ---------- 渲染链接 ----------
+        function renderLinks() {
+            if (links.length === 0) {
+                linkList.innerHTML = `<div style="text-align:center;color:rgba(255,255,255,0.3);padding:20px 0;">暂无链接，请添加</div>`;
+                return;
+            }
+            let html = '';
+            links.forEach((link, index) => {
+                const shortUrl = link.url.length > 50 ? link.url.substring(0, 50) + '...' : link.url;
+                html += `
+                    <div class="link-item" data-index="${index}">
+                        <div class="link-color-dot" style="background:${link.color || '#4facfe'}" title="颜色"></div>
+                        <span class="link-name">${link.name || '未命名'}</span>
+                        <div class="link-url" title="${link.url}">${shortUrl}</div>
+                        <div class="link-actions">
+                            <button class="edit" data-index="${index}" title="编辑">✎</button>
+                            <button class="move-up" data-index="${index}" ${index === 0 ? 'disabled' : ''} title="上移">↑</button>
+                            <button class="move-down" data-index="${index}" ${index === links.length - 1 ? 'disabled' : ''} title="下移">↓</button>
+                            <button class="delete" data-index="${index}" title="删除">✕</button>
+                        </div>
+                    </div>
+                `;
+            });
+            linkList.innerHTML = html;
+
+            linkList.querySelectorAll('.edit').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.index);
+                    startEdit(idx);
+                });
+            });
+            linkList.querySelectorAll('.move-up').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.index);
+                    if (idx > 0) {
+                        ipcRenderer.send('move-link', idx, idx - 1);
+                    }
+                });
+            });
+            linkList.querySelectorAll('.move-down').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.index);
+                    if (idx < links.length - 1) {
+                        ipcRenderer.send('move-link', idx, idx + 1);
+                    }
+                });
+            });
+            linkList.querySelectorAll('.delete').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.index);
+                    ipcRenderer.send('remove-link', idx);
+                });
+            });
+        }
+
+        // ---------- 编辑模式 ----------
+        function startEdit(index) {
+            const link = links[index];
+            if (!link) return;
+            editingIndex = index;
+            newLinkInput.value = link.url;
+            newNameInput.value = link.name || '';
+            newColorInput.value = link.color || '#4facfe';
+            addBtn.textContent = '更新';
+            cancelEditBtn.style.display = 'inline-block';
+        }
+
+        function cancelEdit() {
+            editingIndex = -1;
+            newLinkInput.value = '';
+            newNameInput.value = '';
+            newColorInput.value = '#4facfe';
+            addBtn.textContent = '添加';
+            cancelEditBtn.style.display = 'none';
+        }
+
+        cancelEditBtn.addEventListener('click', cancelEdit);
+
+        // ---------- 提交 ----------
+        function submitLink() {
+            const url = newLinkInput.value.trim();
+            const name = newNameInput.value.trim() || '未命名';
+            const color = newColorInput.value;
+
+            if (!url || !(url.startsWith('webcal://') || url.startsWith('https://'))) {
+                showInfo('链接必须以 webcal:// 或 https:// 开头', 'error');
+                return;
+            }
+
+            if (editingIndex === -1) {
+                ipcRenderer.send('add-link', url, name, color);
+            } else {
+                ipcRenderer.send('update-link', editingIndex, url, name, color);
+                cancelEdit();
+            }
+        }
+
+        addBtn.addEventListener('click', submitLink);
+        newLinkInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLink(); });
+        newNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLink(); });
+
+        function showInfo(msg, type = '') {
+            infoMsg.textContent = msg;
+            infoMsg.className = 'info ' + type;
+            setTimeout(() => {
+                infoMsg.textContent = '';
+                infoMsg.className = 'info';
+            }, 4000);
+        }
+
+        // ---------- 导入导出 ----------
+        exportBtn.addEventListener('click', async () => {
+            if (window.electronAPI && window.electronAPI.exportConfig) {
+                const result = await window.electronAPI.exportConfig();
+                if (result.success) {
+                    showInfo(`配置已导出到 ${result.path}`, 'success');
+                } else if (result.canceled) {
+                    showInfo('导出已取消', '');
+                } else {
+                    showInfo(`导出失败: ${result.error}`, 'error');
+                }
+            }
+        });
+
+        importBtn.addEventListener('click', async () => {
+            if (window.electronAPI && window.electronAPI.importConfig) {
+                const result = await window.electronAPI.importConfig();
+                if (result.success) {
+                    showInfo('配置导入成功，已自动刷新', 'success');
+                } else if (result.canceled) {
+                    showInfo('导入已取消', '');
+                } else {
+                    showInfo(`导入失败: ${result.error}`, 'error');
+                }
+            }
+        });
+
+        // ---------- IPC 事件 ----------
+        ipcRenderer.on('load-links', (e, data) => {
+            links = data || [];
+            renderLinks();
+            if (editingIndex !== -1 && editingIndex >= links.length) cancelEdit();
+        });
+
+        ipcRenderer.on('links-updated', (e, data) => {
+            links = data;
+            renderLinks();
+            showInfo('链接已更新', 'success');
+            if (editingIndex !== -1 && editingIndex < links.length) {
+                const link = links[editingIndex];
+                if (link) {
+                    newLinkInput.value = link.url;
+                    newNameInput.value = link.name || '';
+                    newColorInput.value = link.color || '#4facfe';
+                } else {
+                    cancelEdit();
+                }
+            } else {
+                cancelEdit();
+            }
+        });
+
+        ipcRenderer.on('add-link-result', (e, result) => {
+            if (result.success) {
+                links = result.links;
+                renderLinks();
+                showInfo('添加成功', 'success');
+                cancelEdit();
+            } else {
+                showInfo(result.msg, 'error');
+            }
+        });
+
+        ipcRenderer.on('update-link-result', (e, result) => {
+            if (result.success) {
+                showInfo('更新成功', 'success');
+            } else {
+                showInfo(result.msg, 'error');
+            }
+        });
+
+        ipcRenderer.on('config-imported', (e, config) => {
+            if (config.links) {
+                links = config.links;
+                renderLinks();
+            }
+            if (config.capsuleTheme) {
+                themeSelect.value = config.capsuleTheme;
+            }
+            if (typeof config.capsuleOpacity === 'number') {
+                const percent = Math.round(config.capsuleOpacity * 100);
+                opacitySlider.value = percent;
+                opacityValue.textContent = percent + '%';
+            }
+        });
+
+        // 初始化获取链接和设置
+        ipcRenderer.send('get-links');
+        ipcRenderer.on('capsule-theme-changed', (e, theme) => {
+            themeSelect.value = theme || 'dark';
+        });
+        ipcRenderer.on('capsule-opacity-changed', (e, opacity) => {
+            const percent = Math.round(opacity * 100);
+            opacitySlider.value = percent;
+            opacityValue.textContent = percent + '%';
+        });
+    </script>
+</body>
+</html>
