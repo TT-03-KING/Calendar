@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>设置</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* 关键：所有控件显式退出拖拽区，否则在可拖面板里点击会被吞掉 */
+        button, input, select, textarea, a, [role="switch"] {
+            -webkit-app-region: no-drag !important;
+            pointer-events: auto;
+        }
+
+        :root {
+            --radius: 30px;
+            /* 与主面板完全一致的材质（tint 数值必须对齐，否则两个窗口背景观感不同） */
+            --frost-bg: 0px;
+            --tint: rgba(12, 15, 22, 0.42);
+            --sheen: rgba(255, 255, 255, 0.08);
+            --glow: rgba(255, 255, 255, 0.13);
+            --hairline: rgba(255, 255, 255, 0.14);
+            --edge-hi: rgba(255, 255, 255, 0.20);
+            --edge-lo: rgba(0, 0, 0, 0.16);
+
+            --card: rgba(255, 255, 255, 0.055);
+            --card-hair: rgba(255, 255, 255, 0.09);
+            --field: rgba(255, 255, 255, 0.08);
+            --field-hair: rgba(255, 255, 255, 0.12);
+            --field-hover: rgba(255, 255, 255, 0.15);
+
+            --text: rgba(255, 255, 255, 0.95);
+            --text-dim: rgba(255, 255, 255, 0.62);
+            --text-faint: rgba(255, 255, 255, 0.38);
+            --accent: #4facfe;
+            --danger: #ff6b6b;
+            --ok: #4fdf7f;
+        }
+        body.theme-light {
+            --tint: rgba(248, 250, 253, 0.56);
+            --sheen: rgba(255, 255, 255, 0.64);
+            --glow: rgba(255, 255, 255, 0.74);
+            --hairline: rgba(0, 0, 0, 0.10);
+            --edge-hi: rgba(255, 255, 255, 0.96);
+            --edge-lo: rgba(0, 0, 0, 0.08);
+
+            --card: rgba(255, 255, 255, 0.62);
+            --card-hair: rgba(0, 0, 0, 0.07);
+            --field: rgba(0, 0, 0, 0.05);
+            --field-hair: rgba(0, 0, 0, 0.08);
+            --field-hover: rgba(0, 0, 0, 0.09);
+
+            --text: #16181f;
+            --text-dim: rgba(22, 24, 31, 0.62);
+            --text-faint: rgba(22, 24, 31, 0.40);
+            --danger: #e04b4b;
+            --ok: #17a35a;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            background: transparent !important;
+            font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+            color: var(--text);
+            -webkit-app-region: no-drag;
+            user-select: none;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ---------- 与主面板一致的背景三层 ---------- */
+        #bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            border-radius: var(--radius);
+            background-color: #141821;
+            background-size: cover;
+            background-position: center;
+            pointer-events: none;
+            -webkit-app-region: no-drag;
+        }
+        #bg:not(.has-image) {
+            background-image:
+                radial-gradient(120% 100% at 18% 0%, #2b3553 0%, rgba(43, 53, 83, 0) 60%),
+                radial-gradient(100% 95% at 92% 100%, #3d2b4e 0%, rgba(61, 43, 78, 0) 58%),
+                linear-gradient(160deg, #151a24 0%, #1d2331 52%, #10131a 100%);
+        }
+        #bg.has-image { background-image: var(--bg-image); }
+        body.theme-light #bg:not(.has-image) {
+            background-image:
+                radial-gradient(120% 100% at 18% 0%, #dfe7f5 0%, rgba(223, 231, 245, 0) 60%),
+                radial-gradient(100% 95% at 92% 100%, #f0e4ee 0%, rgba(240, 228, 238, 0) 58%),
+                linear-gradient(160deg, #eef1f7 0%, #e3e8f2 52%, #f5f6fa 100%);
+        }
+
+        #glass {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+            border-radius: var(--radius);
+            overflow: hidden;
+            pointer-events: none;
+            -webkit-app-region: no-drag;
+        }
+        #frost {
+            position: absolute;
+            inset: 0;
+            backdrop-filter: blur(var(--frost-bg));
+            -webkit-backdrop-filter: blur(var(--frost-bg));
+            background:
+                linear-gradient(155deg, var(--sheen) 0%, rgba(255, 255, 255, 0) 44%),
+                radial-gradient(115% 80% at 10% -14%, var(--glow), rgba(255, 255, 255, 0) 62%),
+                var(--tint);
+            transition: background 0.3s ease;
+        }
+        body.no-frost-bg #frost { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+        #edge {
+            position: fixed;
+            inset: 0;
+            z-index: 2;
+            border-radius: var(--radius);
+            border: 0.5px solid var(--hairline);
+            box-shadow: inset 0 1px 0 var(--edge-hi), inset 0 -1px 0 var(--edge-lo);
+            pointer-events: none;
+            -webkit-app-region: no-drag;
+        }
+
+        .container {
+            position: relative;
+            z-index: 3;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 16px 20px 0;
+            /* 只有标题栏可拖，内容区不拖，避免误拖和吞点击 */
+            -webkit-app-region: no-drag;
+        }
+
+        /* ---------- 头部 ---------- */
+        .hdr {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 12px;
+            flex-shrink: 0;
+            -webkit-app-region: drag;
+        }
+        .hdr .t {
+            font-size: 15px;
+            font-weight: 650;
+            letter-spacing: 0.8px;
+        }
+        .hdr .t::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            margin-right: 8px;
+            vertical-align: 3px;
+            box-shadow: 0 0 8px rgba(79, 172, 254, 0.7);
+        }
+        .hdr .grow { flex: 1; }
+        .icon-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--field);
+            border: 0.5px solid var(--field-hair);
+            color: var(--text-dim);
+            cursor: pointer;
+            padding: 0;
+            -webkit-app-region: no-drag;
+            transition: background 0.18s, color 0.18s, transform 0.12s;
+        }
+        .icon-btn:hover { background: var(--field-hover); color: var(--text); }
+        .icon-btn:active { transform: scale(0.92); }
+        .icon-btn svg {
+            width: 15px; height: 15px;
+            fill: none; stroke: currentColor;
+            stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+        }
+        .icon-btn.close:hover { color: var(--danger); background: rgba(255, 107, 107, 0.14); }
+
+        /* ---------- 滚动区 ---------- */
+        .body {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-bottom: 16px;
+            -webkit-app-region: no-drag !important;
+        }
+        .body::-webkit-scrollbar { width: 5px; }
+        .body::-webkit-scrollbar-track { background: transparent; }
+        .body::-webkit-scrollbar-thumb { background: var(--field-hair); border-radius: 3px; }
+        .body::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+        .card {
+            background: var(--card);
+            border: 0.5px solid var(--card-hair);
+            border-radius: 16px;
+            padding: 4px 14px;
+            margin-bottom: 10px;
+        }
+        .card-hd {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            color: var(--text-faint);
+            padding: 12px 0 6px;
+        }
+        .card-hd .grow { flex: 1; }
+        .row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            min-height: 40px;
+            padding: 6px 0;
+            border-top: 0.5px solid var(--card-hair);
+        }
+        .card-hd + .row { border-top: none; }
+        .row-label { font-size: 12.5px; color: var(--text); flex-shrink: 0; }
+        .row-sub { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+        .row-ctrls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+        /* ---------- 分段控件 ---------- */
+        .seg {
+            display: inline-flex;
+            padding: 2px;
+            gap: 2px;
+            background: var(--field);
+            border: 0.5px solid var(--field-hair);
+            border-radius: 9px;
+        }
+        .seg button {
+            min-width: 54px;
+            padding: 5px 11px;
+            font-size: 12px;
+            font-family: inherit;
+            color: var(--text-dim);
+            background: transparent;
+            border: none;
+            border-radius: 7px;
+            cursor: pointer;
+            transition: background 0.18s, color 0.18s;
+        }
+        .seg button:hover { color: var(--text); }
+        .seg button.on {
+            background: rgba(79, 172, 254, 0.22);
+            color: var(--accent);
+            font-weight: 600;
+        }
+        body.theme-light .seg button.on { background: rgba(79, 172, 254, 0.16); color: #1667b8; }
+
+        /* ---------- 开关 ---------- */
+        .switch {
+            width: 40px;
+            height: 23px;
+            border-radius: 12px;
+            border: 0.5px solid var(--field-hair);
+            background: var(--field);
+            cursor: pointer;
+            position: relative;
+            padding: 0;
+            flex-shrink: 0;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .switch span {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 17px;
+            height: 17px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+            transition: transform 0.2s cubic-bezier(0.3, 0.7, 0.4, 1);
+        }
+        .switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+        .switch[aria-checked="true"] span { transform: translateX(17px); }
+
+        /* ---------- 滑块 ---------- */
+        .range-wrap { display: flex; align-items: center; gap: 9px; }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 168px;
+            height: 18px;
+            background: transparent;
+            cursor: pointer;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 4px;
+            border-radius: 2px;
+            background: linear-gradient(to right,
+                var(--accent) 0%, var(--accent) var(--p, 0%),
+                var(--field-hair) var(--p, 0%), var(--field-hair) 100%);
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 13px;
+            height: 13px;
+            margin-top: -4.5px;
+            border-radius: 50%;
+            background: #fff;
+            border: 0.5px solid rgba(0, 0, 0, 0.18);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+        }
+        .range-val {
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+            color: var(--text-dim);
+            width: 34px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        /* ---------- 普通按钮 ---------- */
+        .btn {
+            font-family: inherit;
+            font-size: 12px;
+            color: var(--text);
+            background: var(--field);
+            border: 0.5px solid var(--field-hair);
+            border-radius: 9px;
+            padding: 6px 12px;
+            cursor: pointer;
+            transition: background 0.18s, transform 0.12s;
+            white-space: nowrap;
+        }
+        .btn:hover { background: var(--field-hover); }
+        .btn:active { transform: scale(0.97); }
+        .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+        .btn.primary:hover { background: #3d95e8; }
+        .btn.warn:hover { color: var(--danger); border-color: rgba(255, 107, 107, 0.4); }
+        .btn.tiny { padding: 4px 9px; font-size: 11px; }
+        .btn.block { flex: 1; text-align: center; padding: 8px 0; }
+        .btn.ghost {
+            background: transparent;
+            border-color: transparent;
+            color: var(--text-faint);
+            letter-spacing: 0;
+        }
+        .btn.ghost:hover { background: var(--field); color: var(--text); }
+        .btn.busy { opacity: 0.6; pointer-events: none; }
+
+        /* 同步失败提示条 */
+        .err-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 9px;
+            margin-bottom: 8px;
+            border-radius: 9px;
+            background: rgba(255, 107, 107, 0.10);
+            border: 0.5px solid rgba(255, 107, 107, 0.22);
+        }
+        .err-text { flex: 1; font-size: 11.5px; color: var(--danger); line-height: 1.4; }
+
+        /* ---------- 背景图缩略 ---------- */
+        .thumb {
+            width: 46px;
+            height: 28px;
+            border-radius: 7px;
+            border: 0.5px solid var(--field-hair);
+            background: linear-gradient(150deg, #2b3553, #3d2b4e 55%, #151a24);
+            background-size: cover;
+            background-position: center;
+            flex-shrink: 0;
+        }
+        body.theme-light .thumb:not(.has-img) {
+            background: linear-gradient(150deg, #dfe7f5, #f0e4ee 55%, #eef1f7);
+        }
+
+        /* ---------- 快捷键 ---------- */
+        .keybtn {
+            min-width: 118px;
+            padding: 6px 12px;
+            font-family: inherit;
+            font-size: 11.5px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.3px;
+            color: var(--text-dim);
+            background: var(--field);
+            border: 0.5px solid var(--field-hair);
+            border-radius: 9px;
+            cursor: pointer;
+            text-align: center;
+            transition: background 0.18s, color 0.18s, border-color 0.18s;
+        }
+        .keybtn:hover { background: var(--field-hover); color: var(--text); }
+        .keybtn.recording {
+            background: rgba(79, 172, 254, 0.18);
+            border-color: rgba(79, 172, 254, 0.65);
+            color: var(--accent);
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes pulse { 50% { border-color: rgba(79, 172, 254, 0.25); } }
+        .keybtn.unset { color: var(--text-faint); font-weight: 400; }
+        .hint {
+            font-size: 11px;
+            color: var(--text-faint);
+            padding: 2px 0 8px;
+            line-height: 1.6;
+        }
+
+        /* ---------- 日历源列表 ---------- */
+        .src-list { max-height: 190px; overflow-y: auto; margin: 2px -4px 8px; padding: 0 4px; }
+        .src-list::-webkit-scrollbar { width: 4px; }
+        .src-list::-webkit-scrollbar-thumb { background: var(--field-hair); border-radius: 2px; }
+        .src-empty {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-faint);
+            padding: 18px 0;
+        }
+        .src {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 7px 8px;
+            border-radius: 11px;
+            transition: background 0.16s;
+        }
+        .src:hover { background: var(--field); }
+        .dot {
+            width: 9px; height: 9px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+        .src-main { flex: 1; min-width: 0; }
+        .src-name {
+            font-size: 12.5px;
+            font-weight: 600;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            line-height: 1.4;
+        }
+        .src-url {
+            font-size: 10.5px;
+            color: var(--text-faint);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            line-height: 1.4;
+        }
+        .tag {
+            font-size: 9.5px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 5px;
+            background: var(--field);
+            color: var(--text-faint);
+            flex-shrink: 0;
+            letter-spacing: 0.4px;
+        }
+        .tag.err { background: rgba(255, 107, 107, 0.16); color: var(--danger); cursor: help; }
+        .src-acts { display: flex; gap: 1px; flex-shrink: 0; opacity: 0.55; transition: opacity 0.16s; }
+        .src:hover .src-acts { opacity: 1; }
+        .src-acts button {
+            width: 24px; height: 24px;
+            border: none;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 12px;
+            display: flex; align-items: center; justify-content: center;
+            padding: 0;
+            transition: background 0.16s, color 0.16s;
+        }
+        .src-acts button:hover { background: var(--field-hover); color: var(--text); }
+        .src-acts button[disabled] { opacity: 0.25; cursor: default; background: transparent; }
+        .src-acts button.del:hover { color: var(--danger); background: rgba(255, 107, 107, 0.12); }
+        .src-acts button.armed {
+            width: auto; padding: 0 7px;
+            color: var(--danger);
+            background: rgba(255, 107, 107, 0.16);
+            font-size: 10.5px; font-weight: 700;
+        }
+
+        /* ---------- 添加表单 ---------- */
+        .form { padding: 8px 0 6px; border-top: 0.5px solid var(--card-hair); }
+        .form input[type="text"] {
+            width: 100%;
+            font-family: inherit;
+            font-size: 12.5px;
+            color: var(--text);
+            background: var(--field);
+            border: 0.5px solid var(--field-hair);
+            border-radius: 9px;
+            padding: 8px 11px;
+            outline: none;
+            transition: border-color 0.18s, background 0.18s;
+        }
+        .form input[type="text"]::placeholder { color: var(--text-faint); }
+        .form input[type="text"]:focus { border-color: rgba(79, 172, 254, 0.65); background: var(--field-hover); }
+        .form input[type="text"]:disabled { opacity: 0.55; cursor: not-allowed; }
+        .form-row { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
+        .form-row .name-input { flex: 1; min-width: 60px; }
+        .swatch {
+            width: 26px; height: 26px;
+            border-radius: 8px;
+            border: 0.5px solid var(--field-hair);
+            padding: 0;
+            background: transparent;
+            cursor: pointer;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+        .swatch::-webkit-color-swatch-wrapper { padding: 2px; }
+        .swatch::-webkit-color-swatch { border: none; border-radius: 5px; }
+
+        /* ---------- toast ---------- */
+        .toast {
+            position: absolute;
+            left: 50%;
+            bottom: 12px;
+            transform: translate(-50%, 10px);
+            max-width: 88%;
+            padding: 7px 14px;
+            border-radius: 20px;
+            font-size: 11.5px;
+            font-weight: 500;
+            background: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s, transform 0.2s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            z-index: 10;
+        }
+        body.theme-light .toast { background: rgba(28, 30, 38, 0.88); }
+        .toast.show { opacity: 1; transform: translate(-50%, 0); }
+        .toast.error { background: rgba(190, 48, 48, 0.94); color: #fff; }
+        .toast.success { background: rgba(24, 120, 74, 0.94); color: #fff; }
+
+        :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        @media (prefers-reduced-motion: reduce) {
+            * { transition: none !important; animation: none !important; }
+        }
+    </style>
+</head>
+<body class="theme-dark">
+    <div id="bg"></div>
+    <div id="glass"><div id="frost"></div></div>
+    <div id="edge"></div>
+
+    <div class="container" id="container">
+        <div class="hdr">
+            <div class="t">设置</div>
+            <div class="grow"></div>
+            <button class="icon-btn" id="themeToggle" title="切换深浅色（与面板同步）">
+                <svg viewBox="0 0 24 24" id="themeIcon">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
+            <button class="icon-btn close" id="closeBtn" title="关闭（Esc）">
+                <svg viewBox="0 0 24 24">
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="body">
+            <!-- 外观 -->
+            <div class="card">
+                <div class="card-hd">外观</div>
+                <div class="row">
+                    <div class="row-label">主题</div>
+                    <div class="seg" id="segTheme">
+                        <button data-value="dark">深色</button>
+                        <button data-value="light">浅色</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <div>
+                        <div class="row-label">布局</div>
+                        <div class="row-sub">单列会自动收窄面板</div>
+                    </div>
+                    <div class="seg" id="segLayout">
+                        <button data-value="normal">双列</button>
+                        <button data-value="compact">单列</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <div>
+                        <div class="row-label">背景图</div>
+                        <div class="row-sub">留空则用内置渐变</div>
+                    </div>
+                    <div class="row-ctrls">
+                        <div class="thumb" id="bgThumb"></div>
+                        <button class="btn tiny" id="bgPickBtn">选择</button>
+                        <button class="btn tiny warn" id="bgClearBtn">默认</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 磨砂 -->
+            <div class="card">
+                <div class="card-hd">磨砂程度</div>
+                <div class="row">
+                    <div class="row-label">背景</div>
+                    <div class="row-ctrls">
+                        <div class="range-wrap">
+                            <input type="range" id="frostBg" min="0" max="100" step="1" value="0" aria-label="背景磨砂程度" />
+                        </div>
+                        <span class="range-val" id="frostBgVal">0%</span>
+                    </div>
+                </div>
+                <div class="hint">为 0 时直接显示背景图。日程条与设置里的模块共用这一层磨砂，不再单独调节。</div>
+            </div>
+
+            <!-- 窗口 -->
+            <div class="card">
+                <div class="card-hd">窗口</div>
+                <div class="row">
+                    <div>
+                        <div class="row-label">固定在最前</div>
+                        <div class="row-sub">始终显示在其他窗口之上</div>
+                    </div>
+                    <button class="switch" id="topSwitch" role="switch" aria-checked="false" aria-label="固定在最前"><span></span></button>
+                </div>
+                <div class="row">
+                    <div>
+                        <div class="row-label">开机自启动</div>
+                        <div class="row-sub">登录 Windows 后自动在后台运行</div>
+                    </div>
+                    <button class="switch" id="autoLaunchSwitch" role="switch" aria-checked="false" aria-label="开机自启动"><span></span></button>
+                </div>
+            </div>
+
+            <!-- 快捷键 -->
+            <div class="card">
+                <div class="card-hd">全局快捷键</div>
+                <div class="row">
+                    <div class="row-label">刷新数据</div>
+                    <button class="keybtn" data-action="refresh">—</button>
+                </div>
+                <div class="row">
+                    <div class="row-label">固定在顶部</div>
+                    <button class="keybtn" data-action="toggleTop">—</button>
+                </div>
+                <div class="row">
+                    <div class="row-label">显示 / 隐藏面板</div>
+                    <button class="keybtn" data-action="togglePanel">—</button>
+                </div>
+                <div class="hint" id="hotkeyHint">点击按键框后按下新的组合键，Esc 取消。</div>
+                <div class="row" style="border-top:none; padding-top:0;">
+                    <div class="row-label" style="color:var(--text-faint); font-size:11.5px;">恢复为默认（Ctrl+E / Ctrl+T / F10）</div>
+                    <button class="btn tiny" id="resetHotkeysBtn">恢复默认</button>
+                </div>
+            </div>
+
+            <!-- 日历源 -->
+            <div class="card">
+                <div class="card-hd">
+                    <span>日历源</span>
+                    <span class="grow"></span>
+                    <button class="btn tiny ghost" id="syncBtn" title="立即重新获取所有日历">刷新</button>
+                </div>
+                <div class="src-list" id="linkList"></div>
+                <div class="err-bar" id="errBar" style="display:none;">
+                    <span class="err-text" id="errBarText"></span>
+                    <button class="btn tiny" id="errDetailBtn">查看详情</button>
+                </div>
+                <div class="form">
+                    <input type="text" id="newLinkInput" placeholder="webcal:// 或 https:// …" />
+                    <div class="form-row">
+                        <input type="text" id="newNameInput" class="name-input" placeholder="名称（可选）" />
+                        <input type="color" id="newColorInput" class="swatch" value="#4facfe" title="颜色" />
+                        <button class="btn primary tiny" id="addBtn">添加</button>
+                        <button class="btn tiny" id="cancelEditBtn" style="display:none;">取消</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据 -->
+            <div class="card">
+                <div class="card-hd">数据</div>
+                <div class="row" style="border-top:none;">
+                    <button class="btn block" id="exportBtn">导出配置</button>
+                    <button class="btn block" id="importBtn">导入配置</button>
+                    <button class="btn block" id="importIcsBtn">导入 ICS</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="toast" id="toast"></div>
+    </div>
+
+    <script>
+        // manage-preload.js 通过 contextBridge 注入，页面不直接 require('electron')
+        const path = window.nodePath || { basename: (p) => String(p || '').split(/[\\/]/).pop() };
+
+        // 兜底：即使 preload 注入失败也不能让脚本在这里中断，
+        // 否则后面所有 addEventListener 都不会执行 —— 表现就是「所有按钮都点不了」。
+        const ipc = window.ipcRenderer || {
+            on: () => {},
+            send: () => showInfo('界面通信未就绪，请关闭后重新打开设置', 'error'),
+            invoke: () => Promise.reject(new Error('界面通信未就绪')),
+        };
+
+        const $ = (id) => document.getElementById(id);
+        const bgEl = $('bg');
+        const bgThumb = $('bgThumb');
+        const linkList = $('linkList');
+        const newLinkInput = $('newLinkInput');
+        const newNameInput = $('newNameInput');
+        const newColorInput = $('newColorInput');
+        const addBtn = $('addBtn');
+        const cancelEditBtn = $('cancelEditBtn');
+        const toastEl = $('toast');
+        const topSwitch = $('topSwitch');
+        const frostBg = $('frostBg');
+
+        let links = [];
+        let currentTheme = 'dark';
+        let editingIndex = -1;
+        let linkErrors = {};
+        let recordingBtn = null;
+
+        const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+        // ---------- 转义 ----------
+        function esc(v) {
+            return String(v == null ? '' : v)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        // ---------- toast ----------
+        let toastTimer = null;
+        function showInfo(msg, type) {
+            if (!msg) return;
+            toastEl.textContent = msg;
+            toastEl.className = 'toast show' + (type ? ' ' + type : '');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => { toastEl.className = 'toast'; }, 3200);
+        }
+
+        // ---------- 主题（与主面板同步） ----------
+        function applyTheme(theme) {
+            theme = theme === 'light' ? 'light' : 'dark';
+            currentTheme = theme;
+            document.body.classList.remove('theme-dark', 'theme-light');
+            document.body.classList.add(`theme-${theme}`);
+            setSeg('segTheme', theme);
+            $('themeIcon').innerHTML = theme === 'light'
+                ? `<circle cx="12" cy="12" r="4.4"/><line x1="12" y1="2.4" x2="12" y2="4.4"/><line x1="12" y1="19.6" x2="12" y2="21.6"/><line x1="4.2" y1="4.2" x2="5.6" y2="5.6"/><line x1="18.4" y1="18.4" x2="19.8" y2="19.8"/><line x1="2.4" y1="12" x2="4.4" y2="12"/><line x1="19.6" y1="12" x2="21.6" y2="12"/><line x1="4.2" y1="19.8" x2="5.6" y2="18.4"/><line x1="18.4" y1="5.6" x2="19.8" y2="4.2"/>`
+                : `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`;
+        }
+
+        function switchTheme(next) {
+            applyTheme(next);
+            ipc.send('set-theme', next);   // 主进程广播，两个窗口一起变
+        }
+        $('themeToggle').addEventListener('click', () => switchTheme(currentTheme === 'dark' ? 'light' : 'dark'));
+        ipc.on('theme-changed', (e, theme) => applyTheme(theme));
+
+        $('closeBtn').addEventListener('click', () => window.close());
+
+        // ---------- 分段控件 ----------
+        function setSeg(id, value) {
+            document.querySelectorAll(`#${id} button`).forEach((b) => {
+                b.classList.toggle('on', b.dataset.value === value);
+            });
+        }
+        document.querySelectorAll('#segTheme button').forEach((b) => {
+            b.addEventListener('click', () => switchTheme(b.dataset.value));
+        });
+        document.querySelectorAll('#segLayout button').forEach((b) => {
+            b.addEventListener('click', () => {
+                setSeg('segLayout', b.dataset.value);
+                ipc.send('set-compact', b.dataset.value === 'compact');
+            });
+        });
+
+        // ---------- 背景 / 磨砂 ----------
+        function applyBg(dataUrl) {
+            if (dataUrl) {
+                bgEl.classList.add('has-image');
+                bgEl.style.setProperty('--bg-image', `url("${dataUrl}")`);
+                bgThumb.classList.add('has-img');
+                bgThumb.style.backgroundImage = `url("${dataUrl}")`;
+            } else {
+                bgEl.classList.remove('has-image');
+                bgEl.style.removeProperty('--bg-image');
+                bgThumb.classList.remove('has-img');
+                bgThumb.style.backgroundImage = '';
+            }
+        }
+
+        // 与主面板同一套换算：0-100 → 0-40px（只有背景一层）
+        function applyFrost(frost, syncSlider) {
+            const bg = Math.max(0, Math.min(100, Number(frost && frost.bg) || 0));
+            document.documentElement.style.setProperty('--frost-bg', (bg * 0.4).toFixed(1) + 'px');
+            document.body.classList.toggle('no-frost-bg', bg <= 0);
+            if (syncSlider !== false) {
+                frostBg.value = bg;
+                paintRange(frostBg);
+                $('frostBgVal').textContent = bg + '%';
+            }
+        }
+
+        function paintRange(el) {
+            const p = ((el.value - el.min) / (el.max - el.min)) * 100;
+            el.style.setProperty('--p', p.toFixed(1) + '%');
+        }
+
+        // 拖动时实时下发，节流 60ms，避免每像素都过一次 IPC
+        let frostTimer = null;
+        function onFrostInput() {
+            paintRange(frostBg);
+            $('frostBgVal').textContent = frostBg.value + '%';
+            applyFrost({ bg: frostBg.value }, false);
+            clearTimeout(frostTimer);
+            frostTimer = setTimeout(() => {
+                ipc.send('set-frost', { bg: Number(frostBg.value) });
+            }, 60);
+        }
+        frostBg.addEventListener('input', onFrostInput);
+        ipc.on('frost-changed', (e, f) => applyFrost(f));
+
+        $('bgPickBtn').addEventListener('click', async () => {
+            try {
+                const r = await ipc.invoke('choose-bg-image');
+                if (r && r.success) { applyBg(r.dataUrl); showInfo('背景图已更新', 'success'); }
+                else if (r && r.canceled) showInfo('已取消');
+                else showInfo('设置失败：' + ((r && r.error) || '未知错误'), 'error');
+            } catch (e) { showInfo('设置失败：' + e.message, 'error'); }
+        });
+
+        $('bgClearBtn').addEventListener('click', async () => {
+            try {
+                await ipc.invoke('clear-bg-image');
+                applyBg('');
+                showInfo('已恢复默认背景', 'success');
+            } catch (e) { showInfo('操作失败：' + e.message, 'error'); }
+        });
+
+        // ---------- 置顶 / 开机自启动 ----------
+        topSwitch.addEventListener('click', () => {
+            const next = topSwitch.getAttribute('aria-checked') !== 'true';
+            topSwitch.setAttribute('aria-checked', String(next));
+            ipc.send('set-always-on-top', next);
+        });
+
+        const autoLaunchSwitch = $('autoLaunchSwitch');
+        autoLaunchSwitch.addEventListener('click', () => {
+            const next = autoLaunchSwitch.getAttribute('aria-checked') !== 'true';
+            autoLaunchSwitch.setAttribute('aria-checked', String(next));
+            ipc.send('set-auto-launch', next);
+            showInfo(next ? '已开启开机自启动' : '已关闭开机自启动', next ? 'success' : '');
+        });
+
+        // ---------- 快捷键 ----------
+        function prettyAccel(a) {
+            return String(a || '')
+                .replace(/CommandOrControl|CmdOrCtrl|Control/gi, 'Ctrl')
+                .replace(/Command|Meta/gi, 'Win')
+                .split('+').join(' + ');
+        }
+
+        // 允许局部更新：只处理传进来的字段
+        function applySettings(s) {
+            if (!s) return;
+            if ('compact' in s) setSeg('segLayout', s.compact ? 'compact' : 'normal');
+            if ('alwaysOnTop' in s) topSwitch.setAttribute('aria-checked', String(!!s.alwaysOnTop));
+            if ('autoLaunch' in s) autoLaunchSwitch.setAttribute('aria-checked', String(!!s.autoLaunch));
+            if (s.theme) applyTheme(s.theme);
+            if (s.frost) applyFrost(s.frost);
+            if (s.hotkeys) {
+                document.querySelectorAll('.keybtn').forEach((btn) => {
+                    const v = s.hotkeys[btn.dataset.action];
+                    btn.textContent = v ? prettyAccel(v) : '未设置';
+                    btn.classList.toggle('unset', !v);
+                });
+            }
+        }
+
+        function stopRecording() {
+            if (recordingBtn) {
+                recordingBtn.classList.remove('recording');
+                recordingBtn = null;
+            }
+            $('hotkeyHint').textContent = '点击按键框后按下新的组合键，Esc 取消。';
+        }
+
+        document.querySelectorAll('.keybtn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                stopRecording();
+                recordingBtn = btn;
+                btn.classList.add('recording');
+                btn.textContent = '按下组合键…';
+                $('hotkeyHint').textContent = '正在录制：按 Esc 取消，按 Backspace 清空。';
+            });
+        });
+
+        // 浏览器 KeyboardEvent → Electron accelerator
+        function toAccel(e) {
+            if (e.key === 'Escape') return 'Escape';
+            if (e.key === 'Backspace') return '';
+            if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return null;
+
+            const mods = [];
+            if (e.ctrlKey || e.metaKey) mods.push('CommandOrControl');
+            if (e.altKey) mods.push('Alt');
+            if (e.shiftKey) mods.push('Shift');
+
+            let k = e.key;
+            if (k === ' ') k = 'Space';
+            else if (k.length === 1) k = k.toUpperCase();
+            else if (k.startsWith('Arrow')) k = k.slice(5);
+            else if (!/^(F\d{1,2}|Tab|Enter|Delete|Home|End|PageUp|PageDown|Insert)$/.test(k)) return null;
+
+            // 没有修饰键时只允许 F1~F24，否则会和输入/系统键冲突
+            if (!mods.length && !/^F\d{1,2}$/.test(k)) return null;
+            return mods.concat(k).join('+');
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (!recordingBtn) {
+                if (e.key === 'Escape') window.close();
+                return;
+            }
+            e.preventDefault();
+            e.stopImmediatePropagation();
+
+            if (e.key === 'Escape') {
+                stopRecording();
+                ipc.invoke('get-settings').then(applySettings).catch(() => {});
+                return;
+            }
+            const accel = toAccel(e);
+            if (accel === null) return;
+            const action = recordingBtn.dataset.action;
+            recordingBtn.textContent = accel ? prettyAccel(accel) : '未设置';
+            stopRecording();
+            ipc.send('set-hotkey', action, accel);
+        }, true);
+
+        ipc.on('hotkey-result', (e, r) => {
+            if (r && r.success) {
+                applySettings({ hotkeys: r.hotkeys });
+                showInfo(r.msg || '快捷键已保存', r.msg ? 'error' : 'success');
+            } else {
+                showInfo((r && r.msg) || '快捷键设置失败', 'error');
+                ipc.invoke('get-settings').then(applySettings).catch(() => {});
+            }
+        });
+
+        $('resetHotkeysBtn').addEventListener('click', () => ipc.send('reset-hotkeys'));
+
+        ipc.on('settings-changed', (e, s) => applySettings(s));
+
+        // ---------- 日历源 ----------
+        ipc.on('link-errors-updated', (e, errors) => {
+            linkErrors = errors || {};
+            renderLinks();
+        });
+
+        // 失败提示条：只在这里提示「有几个失败 + 首个原因」，详细诊断在报告窗口里
+        function renderErrBar() {
+            const failed = Object.values(linkErrors || {}).filter(Boolean);
+            const bar = $('errBar');
+            if (!failed.length) { bar.style.display = 'none'; return; }
+            const first = failed[0];
+            bar.style.display = 'flex';
+            $('errBarText').textContent = failed.length === 1
+                ? `「${first.name}」获取失败：${first.title || '原因未知'}`
+                : `${failed.length} 个日历获取失败（如「${first.name}」：${first.title || '原因未知'}）`;
+        }
+
+        // 手动刷新所有日历
+        const syncBtn = $('syncBtn');
+        syncBtn.addEventListener('click', () => {
+            syncBtn.classList.add('busy');
+            syncBtn.textContent = '同步中…';
+            ipc.send('refresh-cache');
+            // 兜底：8 秒还没回信就恢复按钮，避免一直卡在"同步中"
+            setTimeout(() => {
+                if (!syncBtn.isConnected) return;
+                syncBtn.classList.remove('busy');
+                syncBtn.textContent = '刷新';
+            }, 8000);
+        });
+        ipc.on('refresh-calendar', () => {
+            syncBtn.classList.remove('busy');
+            syncBtn.textContent = '刷新';
+        });
+
+        $('errDetailBtn').addEventListener('click', () => ipc.send('open-error-report'));
+
+        function renderLinks() {
+            if (!links.length) {
+                linkList.innerHTML = `<div class="src-empty">还没有日历源，把 webcal 链接粘到下面</div>`;
+                renderErrBar();
+                return;
+            }
+            let html = '';
+            links.forEach((link, index) => {
+                const isLocal = link.type === 'local';
+                const name = link.name || '未命名';
+                const raw = isLocal ? (link.filePath || '') : (link.url || '');
+                const short = isLocal
+                    ? (raw ? path.basename(raw) : '本地文件')
+                    : (raw.length > 46 ? raw.slice(0, 46) + '…' : raw);
+                const errKey = link.url || link.filePath;
+                const errInfo = (errKey && linkErrors[errKey]) || null;
+                const color = /^#[0-9a-fA-F]{3,8}$/.test(link.color || '') ? link.color : '#4facfe';
+
+                html += `
+                    <div class="src" data-index="${index}">
+                        <span class="dot" style="background:${color}"></span>
+                        <div class="src-main">
+                            <div class="src-name" title="${esc(name)}">${esc(name)}</div>
+                            <div class="src-url" title="${esc(raw)}">${esc(short)}</div>
+                        </div>
+                        <span class="tag">${isLocal ? '本地' : '网络'}</span>
+                        ${errInfo ? `<span class="tag err" title="${esc((errInfo.title || '获取失败') + ' · ' + (errInfo.hint || ''))}">${errInfo.count > 1 ? `失败 ${errInfo.count} 次` : '失败'}</span>` : ''}
+                        <div class="src-acts">
+                            <button class="up" data-index="${index}" title="上移" ${index === 0 ? 'disabled' : ''}>↑</button>
+                            <button class="down" data-index="${index}" title="下移" ${index === links.length - 1 ? 'disabled' : ''}>↓</button>
+                            <button class="edit" data-index="${index}" title="编辑">✎</button>
+                            <button class="del" data-index="${index}" title="删除">✕</button>
+                        </div>
+                    </div>
+                `;
+            });
+            linkList.innerHTML = html;
+            renderErrBar();
+
+            linkList.querySelectorAll('.up').forEach((b) => b.addEventListener('click', () => {
+                const i = +b.dataset.index;
+                if (i > 0) ipc.send('move-link', i, i - 1);
+            }));
+            linkList.querySelectorAll('.down').forEach((b) => b.addEventListener('click', () => {
+                const i = +b.dataset.index;
+                if (i < links.length - 1) ipc.send('move-link', i, i + 1);
+            }));
+            linkList.querySelectorAll('.edit').forEach((b) => b.addEventListener('click', () => {
+                startEdit(+b.dataset.index);
+            }));
+            linkList.querySelectorAll('.del').forEach((b) => b.addEventListener('click', () => {
+                const i = +b.dataset.index;
+                if (!links[i]) return;
+                // 不用原生 confirm（阻塞且风格突兀），按钮内联二次确认，4 秒后自动还原
+                if (b.dataset.armed === '1') {
+                    clearTimeout(b._t);
+                    b.dataset.armed = '0';
+                    b.classList.remove('armed');
+                    b.textContent = '✕';
+                    ipc.send('remove-link', i);
+                } else {
+                    b.dataset.armed = '1';
+                    b.classList.add('armed');
+                    b.textContent = '确认';
+                    b._t = setTimeout(() => {
+                        if (!b.isConnected) return;
+                        b.dataset.armed = '0';
+                        b.classList.remove('armed');
+                        b.textContent = '✕';
+                    }, 4000);
+                }
+            }));
+        }
+
+        function startEdit(index) {
+            const link = links[index];
+            if (!link) return;
+            editingIndex = index;
+            if (link.type === 'local') {
+                newLinkInput.value = link.filePath ? path.basename(link.filePath) : '本地文件';
+                newLinkInput.disabled = true;
+            } else {
+                newLinkInput.value = link.url || '';
+                newLinkInput.disabled = false;
+            }
+            newNameInput.value = link.name || '';
+            newColorInput.value = /^#[0-9a-fA-F]{6}$/.test(link.color || '') ? link.color : '#4facfe';
+            addBtn.textContent = '更新';
+            cancelEditBtn.style.display = '';
+            newNameInput.focus();
+        }
+
+        function cancelEdit() {
+            editingIndex = -1;
+            newLinkInput.value = '';
+            newLinkInput.disabled = false;
+            newNameInput.value = '';
+            newColorInput.value = '#4facfe';
+            addBtn.textContent = '添加';
+            cancelEditBtn.style.display = 'none';
+        }
+
+        cancelEditBtn.addEventListener('click', cancelEdit);
+
+        function submitLink() {
+            const url = newLinkInput.value.trim();
+            const name = newNameInput.value.trim() || '未命名';
+            const color = newColorInput.value;
+
+            if (editingIndex !== -1) {
+                const link = links[editingIndex];
+                if (link && link.type === 'local') {
+                    ipc.send('update-link', editingIndex, link.url || link.filePath, name, color);
+                    cancelEdit();
+                    return;
+                }
+            }
+
+            if (!url || !(url.startsWith('webcal://') || url.startsWith('https://'))) {
+                showInfo('链接必须以 webcal:// 或 https:// 开头', 'error');
+                return;
+            }
+
+            if (editingIndex === -1) ipc.send('add-link', url, name, color);
+            else {
+                ipc.send('update-link', editingIndex, url, name, color);
+                cancelEdit();
+            }
+        }
+
+        addBtn.addEventListener('click', submitLink);
+        newLinkInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLink(); });
+        newNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLink(); });
+
+        // ---------- 数据 ----------
+        $('exportBtn').addEventListener('click', async () => {
+            try {
+                const r = await ipc.invoke('export-config');
+                if (r && r.success) showInfo('已导出：' + r.path, 'success');
+                else if (r && r.canceled) showInfo('已取消');
+                else showInfo('导出失败：' + ((r && r.error) || '未知错误'), 'error');
+            } catch (e) { showInfo('导出异常：' + e.message, 'error'); }
+        });
+
+        $('importBtn').addEventListener('click', async () => {
+            try {
+                const r = await ipc.invoke('import-config');
+                if (r && r.success) showInfo('配置已导入并刷新', 'success');
+                else if (r && r.canceled) showInfo('已取消');
+                else showInfo('导入失败：' + ((r && r.error) || '未知错误'), 'error');
+            } catch (e) { showInfo('导入异常：' + e.message, 'error'); }
+        });
+
+        $('importIcsBtn').addEventListener('click', async () => {
+            try {
+                const r = await ipc.invoke('import-ics');
+                if (r && r.success) {
+                    showInfo(`已导入「${r.link.name}」`, 'success');
+                    ipc.send('get-links');
+                } else if (r && r.canceled) showInfo('已取消');
+                else showInfo('导入失败：' + ((r && r.error) || '未知错误'), 'error');
+            } catch (e) { showInfo('导入异常：' + e.message, 'error'); }
+        });
+
+        // ---------- IPC ----------
+        ipc.on('load-links', (e, data) => {
+            links = data || [];
+            renderLinks();
+            if (editingIndex !== -1 && editingIndex >= links.length) cancelEdit();
+        });
+
+        ipc.on('links-updated', (e, data) => {
+            links = data || [];
+            renderLinks();
+            if (editingIndex !== -1 && editingIndex < links.length) {
+                if (!links[editingIndex]) cancelEdit();
+            } else cancelEdit();
+        });
+
+        ipc.on('add-link-result', (e, r) => {
+            if (r && r.success) {
+                links = r.links || links;
+                renderLinks();
+                showInfo('已添加', 'success');
+                cancelEdit();
+            } else showInfo((r && r.msg) || '添加失败', 'error');
+        });
+
+        ipc.on('update-link-result', (e, r) => {
+            if (!(r && r.success)) showInfo((r && r.msg) || '更新失败', 'error');
+            else showInfo('已更新', 'success');
+        });
+
+        ipc.on('config-imported', (e, cfg) => {
+            if (cfg && cfg.links) { links = cfg.links; renderLinks(); }
+            if (cfg && cfg.theme) applyTheme(cfg.theme);
+            showInfo('配置已更新', 'success');
+        });
+
+        // ---------- 初始化 ----------
+        // 先把主题 / 背景 / 磨砂刷好，再通知主进程显示窗口，避免「闪一下」。
+        (async function init() {
+            let settings = null, bg = '';
+            try {
+                [settings, bg] = await Promise.all([
+                    ipc.invoke('get-settings').catch(() => null),
+                    ipc.invoke('get-bg-image').catch(() => ''),
+                ]);
+            } catch (e) { /* 用默认值 */ }
+
+            applyTheme((settings && settings.theme) || 'dark');
+            applyFrost((settings && settings.frost) || { bg: 0, card: 55 });
+            applyBg(bg || '');
+            applySettings(settings);
+
+            ipc.send('get-links');
+
+            // 等链接列表到齐（最多 200ms）再显示，避免列表「跳」出来
+            await new Promise((resolve) => {
+                let done = false;
+                const finish = () => {
+                    if (done) return;
+                    done = true;
+                    resolve();
+                };
+                ipc.on('load-links', finish);
+                setTimeout(finish, 200);
+            });
+
+            await nextPaint();
+            ipc.send('manage-ready');
+        })();
+    </script>
+</body>
+</html>

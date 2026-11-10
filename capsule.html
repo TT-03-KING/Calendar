@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Calendar</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* 关键：可交互控件必须显式退出拖拽区。
+           拖拽区会吞掉鼠标事件，只给父容器加 no-drag 不可靠（子元素仍可能算作 drag），
+           所以这里对所有控件统一 !important。 */
+        button, input, select, textarea, a, [role="switch"] {
+            -webkit-app-region: no-drag !important;
+            pointer-events: auto;
+        }
+
+        /* ===== 材质令牌：暗/亮两套，全部挂 body，让 #bg / #frost 也能读到 ===== */
+        :root {
+            --radius: 34px;
+            --pad-x: 20px;
+            --pad-y: 14px;
+
+            /* 磨砂强度由设置注入：0 = 直接显示背景，不加任何模糊。
+               日程条不再有自己的模糊，共用这一层 */
+            --frost-bg: 0px;
+
+            --tint: rgba(12, 15, 22, 0.42);
+            --sheen: rgba(255, 255, 255, 0.08);
+            --glow: rgba(255, 255, 255, 0.14);
+            --hairline: rgba(255, 255, 255, 0.16);
+            --edge-hi: rgba(255, 255, 255, 0.22);
+            --edge-lo: rgba(0, 0, 0, 0.20);
+
+            --card-fill: rgba(255, 255, 255, 0.06);
+            --card-hair: rgba(255, 255, 255, 0.08);
+
+            --ctrl-fill: rgba(255, 255, 255, 0.12);
+            --ctrl-hover: rgba(255, 255, 255, 0.24);
+
+            --text: #ffffff;
+            --text-dim: rgba(255, 255, 255, 0.62);
+            --text-faint: rgba(255, 255, 255, 0.36);
+        }
+        body.theme-light {
+            --tint: rgba(248, 250, 253, 0.56);
+            --sheen: rgba(255, 255, 255, 0.64);
+            --glow: rgba(255, 255, 255, 0.74);
+            --hairline: rgba(0, 0, 0, 0.10);
+            --edge-hi: rgba(255, 255, 255, 0.96);
+            --edge-lo: rgba(0, 0, 0, 0.08);
+
+            --card-fill: rgba(255, 255, 255, 0.55);
+            --card-hair: rgba(255, 255, 255, 0.80);
+
+            --ctrl-fill: rgba(255, 255, 255, 0.58);
+            --ctrl-hover: rgba(255, 255, 255, 0.90);
+
+            --text: #14161d;
+            --text-dim: rgba(20, 22, 29, 0.60);
+            --text-faint: rgba(20, 22, 29, 0.38);
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            background: transparent !important;
+            font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+            color: var(--text);
+            /* 整窗不做拖拽区：拖拽交给 .capsule 一层，避免把按钮点击一并吞掉 */
+            -webkit-app-region: no-drag;
+            user-select: none;
+            -webkit-font-smoothing: antialiased;
+            /* 显隐只改透明度：窗口不 hide/show，就不会有合成表面重建的那一帧白闪 */
+            transition: opacity 0.13s ease;
+        }
+
+        /* 完全透明 = 视觉上彻底消失（此时主进程同时把鼠标设为穿透） */
+        body.slot-hidden { opacity: 0; }
+
+        /* 装饰层全部退出拖拽 / 点击，绝不能盖在内容之上抢事件 */
+        #bg, #glass, #frost, #edge {
+            -webkit-app-region: no-drag;
+            pointer-events: none;
+        }
+
+        /* ===== 第 1 层：底图（自定义图 或 内置渐变） =====
+           磨砂强度为 0 时，这一层就是最终看到的背景。 */
+        #bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            border-radius: var(--radius);
+            background-color: #141821;
+            background-size: cover;
+            background-position: center;
+        }
+        #bg:not(.has-image) {
+            background-image:
+                radial-gradient(120% 100% at 18% 0%, #2b3553 0%, rgba(43, 53, 83, 0) 60%),
+                radial-gradient(100% 95% at 92% 100%, #3d2b4e 0%, rgba(61, 43, 78, 0) 58%),
+                linear-gradient(160deg, #151a24 0%, #1d2331 52%, #10131a 100%);
+        }
+        #bg.has-image { background-image: var(--bg-image); }
+        body.theme-light #bg:not(.has-image) {
+            background-image:
+                radial-gradient(120% 100% at 18% 0%, #dfe7f5 0%, rgba(223, 231, 245, 0) 60%),
+                radial-gradient(100% 95% at 92% 100%, #f0e4ee 0%, rgba(240, 228, 238, 0) 58%),
+                linear-gradient(160deg, #eef1f7 0%, #e3e8f2 52%, #f5f6fa 100%);
+        }
+
+        /* ===== 第 2 层：磨砂层 =====
+           默认 blur 0（直接看背景），由设置里的「背景磨砂」驱动。
+           单独一层是「日程条真磨砂」的前提：若加在 .capsule 上，它就成了新的 backdrop root，
+           里面卡片的 backdrop-filter 只能糊到面板自己的底色，糊不到背景图。 */
+        #glass {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        #frost {
+            position: absolute;
+            inset: 0;
+            backdrop-filter: blur(var(--frost-bg));
+            -webkit-backdrop-filter: blur(var(--frost-bg));
+            background:
+                linear-gradient(155deg, var(--sheen) 0%, rgba(255, 255, 255, 0) 46%),
+                radial-gradient(120% 82% at 10% -14%, var(--glow), rgba(255, 255, 255, 0) 64%),
+                var(--tint);
+            transition: background 0.35s ease;
+        }
+        /* 磨砂为 0 时彻底关掉滤镜：既省一层合成，也让背景回到原始清晰度。
+           注意这里只允许「模糊」，不要再往滤镜链里塞 saturate/brightness ——
+           那样开关磨砂时颜色会跟着变。 */
+        body.no-frost-bg #frost { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+        /* 描边单独一层，不被磨砂层吃掉 */
+        #edge {
+            position: fixed;
+            inset: 0;
+            z-index: 2;
+            border-radius: var(--radius);
+            border: 0.5px solid var(--hairline);
+            box-shadow:
+                inset 0 1px 0 var(--edge-hi),
+                inset 0 -1px 0 var(--edge-lo);
+        }
+
+        /* ===== 第 3 层：内容 ===== */
+        .capsule {
+            position: relative;
+            z-index: 3;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: var(--pad-y) var(--pad-x);
+            /* 整块面板都可拖动；里面的 button 已在顶部统一设了 no-drag */
+            -webkit-app-region: drag;
+            pointer-events: auto;
+        }
+
+        /* ---------- 头部：只有一排居中的按钮 ---------- */
+        .hd {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-shrink: 0;
+            -webkit-app-region: drag;
+        }
+        .hd button {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--ctrl-fill);
+            border: 0.5px solid var(--hairline);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: inherit;
+            padding: 0;
+            transition: background 0.18s, transform 0.12s ease;
+        }
+        .hd button:hover { background: var(--ctrl-hover); }
+        .hd button:active { transform: scale(0.92); }
+        .hd button:focus-visible { outline: 2px solid #4facfe; outline-offset: 2px; }
+        .hd button.on {
+            background: rgba(79, 172, 254, 0.26);
+            border-color: rgba(79, 172, 254, 0.55);
+            color: #e2f1ff;
+        }
+        body.theme-light .hd button.on { color: #1667b8; }
+        .hd svg {
+            width: 16px;
+            height: 16px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        #refreshBtn.spin svg { animation: spin 0.7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ---------- 日程区 ---------- */
+        .content {
+            flex: 1;
+            min-height: 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            align-content: start;
+            /* 日程多了可以滚动，但滚动条隐藏（面板本来就没有滚动条的位置） */
+            overflow-y: auto;
+            overflow-x: hidden;
+            overscroll-behavior: contain;
+            scrollbar-width: none;
+            padding-top: 12px;
+            padding-right: 2px;
+            /* 关键：这里必须是 no-drag。
+               拖拽区会把滚轮事件也吞掉（系统当作"拖窗口"处理），
+               之前滚不动就是因为 .content 被设成了 drag。
+               拖动窗口改由标题栏那一行 + 面板四周的留白承担。 */
+            -webkit-app-region: no-drag;
+        }
+        .content::-webkit-scrollbar { width: 0; height: 0; display: none; }
+        .content.single-col { grid-template-columns: 1fr; }
+
+        .event-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            height: 48px;
+            min-width: 0;
+            padding: 0 12px;
+            border-radius: 16px;
+            /* 和设置页里的模块完全同一套做法：只是一层很淡的透明填充 + 发丝边，
+               不做自己的 backdrop-filter —— 磨砂感来自下面 #frost 那一层，
+               卡片只是"挖开"让模糊后的背景透上来，视觉上才统一。 */
+            background: var(--card-fill);
+            border: 0.5px solid var(--card-hair);
+            overflow: hidden;
+            position: relative;
+            /* 悬停只做"轻微放大 + 轻微提亮"，不用原生 title 提示框（那个白色方框很丑） */
+            transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+        }
+        .event-item:hover {
+            background: rgba(255, 255, 255, 0.11);
+            transform: translateY(-1px) scale(1.008);
+            box-shadow:
+                0 4px 14px rgba(0, 0, 0, 0.18),
+                inset 0 1px 0 rgba(255, 255, 255, 0.14);
+        }
+        body.theme-light .event-item:hover {
+            background: rgba(255, 255, 255, 0.78);
+            box-shadow:
+                0 4px 14px rgba(0, 0, 0, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+
+        .color-dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.10);
+        }
+        .color-dot.breathing { animation: breathe 1.8s ease-in-out infinite; }
+        @keyframes breathe {
+            0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 2px rgba(255,255,255,0.10); }
+            50% { opacity: 0.45; transform: scale(0.82); box-shadow: 0 0 9px 2px currentColor; }
+        }
+
+        .event-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 2px;
+            overflow: hidden;
+            text-align: left;
+        }
+        .event-title-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 8px;
+            width: 100%;
+        }
+        .event-title {
+            flex: 1;
+            min-width: 0;
+            font-size: 13.5px;
+            font-weight: 600;
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .calendar-tag {
+            flex-shrink: 0;
+            font-size: 10.5px;
+            font-weight: 500;
+            color: var(--text-faint);
+            max-width: 88px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .event-detail {
+            font-size: 11.5px;
+            line-height: 1.35;
+            color: var(--text-dim);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .loc-icon {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            vertical-align: -1px;
+            opacity: 0.7;
+        }
+
+        .no-events {
+            grid-column: 1 / -1;
+            text-align: center;
+            font-size: 14px;
+            line-height: 1.9;
+            padding: 16px 0;
+            color: var(--text-dim);
+        }
+        .error { color: #ff7b7b !important; }
+        .loading { opacity: 0.6; }
+
+        /* 第一次出卡片时轻微淡入：数据比首屏晚到时，不会「啪」地硬切 */
+        .content.enter .event-item { animation: card-in 0.22s ease-out both; }
+        @keyframes card-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+
+        /* 不做首帧淡入：窗口已经等首屏就绪才显示，再加动画反而会在显示瞬间透一下 */
+        @media (prefers-reduced-motion: reduce) {
+            .color-dot.breathing, #refreshBtn.spin svg { animation: none; }
+            .event-item, .hd button { transition: none; }
+        }
+
+        /* ===== 缩小 → 单列 + 逐级精简 ===== */
+        @media (max-width: 560px) {
+            .content { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 440px) {
+            :root { --radius: 26px; --pad-x: 14px; --pad-y: 11px; }
+            .hd { gap: 6px; }
+            .hd button { width: 27px; height: 27px; }
+            .hd svg { width: 15px; height: 15px; }
+            .calendar-tag { display: none; }
+            .content { gap: 9px; padding-top: 10px; }
+            .event-item { height: 44px; border-radius: 12px; padding: 0 10px; }
+        }
+        @media (max-width: 340px) {
+            :root { --radius: 20px; --pad-x: 10px; --pad-y: 8px; }
+            .hd { gap: 4px; }
+            .hd button { width: 24px; height: 24px; }
+            .hd svg { width: 13px; height: 13px; }
+            .event-item { height: 40px; }
+            .event-detail { display: none; }   /* 极窄：只留标题 */
+        }
+    </style>
+</head>
+<body class="theme-dark">
+    <div id="bg"></div>
+    <div id="glass"><div id="frost"></div></div>
+    <div id="edge"></div>
+
+    <div class="capsule" id="capsule">
+        <div class="hd">
+            <button id="refreshBtn" title="刷新数据">
+                <svg viewBox="0 0 24 24">
+                    <path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1" />
+                    <polyline points="20.5 4 20.5 9 15.5 9" />
+                </svg>
+            </button>
+            <button id="layoutBtn" title="切换单列 / 双列">
+                <svg viewBox="0 0 24 24" id="layoutIcon">
+                    <rect x="3.2" y="4.8" width="7.4" height="14.4" rx="2.2" />
+                    <rect x="13.4" y="4.8" width="7.4" height="14.4" rx="2.2" />
+                </svg>
+            </button>
+            <button id="themeToggle" title="切换主题">
+                <svg viewBox="0 0 24 24" id="themeIcon">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+            </button>
+            <button id="settingsBtn" title="设置">
+                <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="3.1" />
+                    <path d="M19.2 14.6a1.5 1.5 0 0 0 .3 1.7l.1.1a1.9 1.9 0 1 1-2.7 2.7l-.1-.1a1.5 1.5 0 0 0-1.7-.3 1.5 1.5 0 0 0-.9 1.4v.2a1.9 1.9 0 1 1-3.8 0v-.1a1.5 1.5 0 0 0-1-1.4 1.5 1.5 0 0 0-1.7.3l-.1.1a1.9 1.9 0 1 1-2.7-2.7l.1-.1a1.5 1.5 0 0 0 .3-1.7 1.5 1.5 0 0 0-1.4-.9H3.3a1.9 1.9 0 1 1 0-3.8h.1a1.5 1.5 0 0 0 1.4-1 1.5 1.5 0 0 0-.3-1.7l-.1-.1a1.9 1.9 0 1 1 2.7-2.7l.1.1a1.5 1.5 0 0 0 1.7.3h.1a1.5 1.5 0 0 0 .9-1.4V3.3a1.9 1.9 0 1 1 3.8 0v.1a1.5 1.5 0 0 0 .9 1.4 1.5 1.5 0 0 0 1.7-.3l.1-.1a1.9 1.9 0 1 1 2.7 2.7l-.1.1a1.5 1.5 0 0 0-.3 1.7v.1a1.5 1.5 0 0 0 1.4.9h.2a1.9 1.9 0 1 1 0 3.8h-.1a1.5 1.5 0 0 0-1.4.9z" />
+                </svg>
+            </button>
+            <button id="minimizeBtn" title="最小化">
+                <svg viewBox="0 0 24 24">
+                    <line x1="6.5" y1="12" x2="17.5" y2="12" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="content" id="content">
+            <div class="no-events loading">⏳ 加载中…</div>
+        </div>
+    </div>
+
+    <script>
+        if (typeof window.electronAPI === 'undefined') {
+            document.getElementById('content').innerHTML =
+                '<div class="no-events error">⚠️ 应用初始化失败，请重启</div>';
+            throw new Error('electronAPI not available');
+        }
+
+        const api = window.electronAPI;
+        const bgEl = document.getElementById('bg');
+        const layoutBtn = document.getElementById('layoutBtn');
+        const layoutIcon = document.getElementById('layoutIcon');
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const minimizeBtn = document.getElementById('minimizeBtn');
+        const contentEl = document.getElementById('content');
+
+        let currentTheme = 'dark';
+        let allEvents = [];
+        let hasRenderedCards = false;   // 只让第一次出卡片时做淡入
+
+        const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+        // ---------- HTML 转义 ----------
+        // 日程标题/地点/日历名来自远程 ICS，必须先转义再进 innerHTML，否则可注入脚本。
+        function esc(v) {
+            return String(v == null ? '' : v)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        // ---------- 背景图 ----------
+        function applyBgImage(dataUrl) {
+            if (dataUrl) {
+                bgEl.classList.add('has-image');
+                bgEl.style.setProperty('--bg-image', `url("${dataUrl}")`);
+            } else {
+                bgEl.classList.remove('has-image');
+                bgEl.style.removeProperty('--bg-image');
+            }
+        }
+
+        // ---------- 磨砂强度（只有背景一层，卡片共用它） ----------
+        // 0-100 → 0-40px。为 0 时直接关掉滤镜，保证「直接显示背景」。
+        function applyFrost(frost) {
+            const bg = Math.max(0, Math.min(100, Number(frost && frost.bg) || 0));
+            document.documentElement.style.setProperty('--frost-bg', (bg * 0.4).toFixed(1) + 'px');
+            document.body.classList.toggle('no-frost-bg', bg <= 0);
+        }
+
+        // ---------- 单列 / 双列 ----------
+        function applyCompact(compact) {
+            const on = !!compact;
+            contentEl.classList.toggle('single-col', on);
+            layoutBtn.classList.toggle('on', on);
+            layoutBtn.title = on ? '当前：单列（点击切回双列）' : '当前：双列（点击切为单列）';
+            // 图标跟随状态：单列画一列，双列画两列
+            layoutIcon.innerHTML = on
+                ? '<rect x="6.4" y="4.8" width="11.2" height="14.4" rx="2.4" />'
+                : '<rect x="3.2" y="4.8" width="7.4" height="14.4" rx="2.2" /><rect x="13.4" y="4.8" width="7.4" height="14.4" rx="2.2" />';
+            // 栅格由 CSS 切换，DOM 不用重绘
+        }
+
+        // ---------- 主题 ----------
+        function applyTheme(theme) {
+            theme = theme === 'light' ? 'light' : 'dark';
+            currentTheme = theme;
+            document.body.classList.remove('theme-dark', 'theme-light');
+            document.body.classList.add(`theme-${theme}`);
+            themeIcon.innerHTML = theme === 'light'
+                ? `<circle cx="12" cy="12" r="4.4"/>
+                   <line x1="12" y1="2.4" x2="12" y2="4.4"/>
+                   <line x1="12" y1="19.6" x2="12" y2="21.6"/>
+                   <line x1="4.2" y1="4.2" x2="5.6" y2="5.6"/>
+                   <line x1="18.4" y1="18.4" x2="19.8" y2="19.8"/>
+                   <line x1="2.4" y1="12" x2="4.4" y2="12"/>
+                   <line x1="19.6" y1="12" x2="21.6" y2="12"/>
+                   <line x1="4.2" y1="19.8" x2="5.6" y2="18.4"/>
+                   <line x1="18.4" y1="5.6" x2="19.8" y2="4.2"/>`
+                : `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`;
+        }
+
+        function toggleTheme() {
+            const next = currentTheme === 'dark' ? 'light' : 'dark';
+            applyTheme(next);
+            api.setTheme(next);   // 主进程广播给设置页，两边同步
+        }
+        themeToggle.addEventListener('click', toggleTheme);
+        if (api.onThemeChanged) api.onThemeChanged((e, theme) => applyTheme(theme));
+
+        // ---------- 时间格式 ----------
+        function fmtDate(d) {
+            const dt = new Date(d);
+            const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+            return `${dt.getMonth() + 1}月${dt.getDate()}日 周${weekdays[dt.getDay()]}`;
+        }
+        function fmtTime(d) {
+            const dt = new Date(d);
+            return `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+        }
+        function isWithinHour(date) {
+            const diff = new Date(date).getTime() - Date.now();
+            return diff > 0 && diff <= 3600000;
+        }
+
+        // ---------- 渲染日程 ----------
+        // 记住上一次的输出：内容一模一样就完全不碰 DOM，避免无意义的重排重绘。
+        let lastHtml = null;
+
+        function commit(html) {
+            if (html === lastHtml) return;   // 没变化 → 不重排、不重绘
+            lastHtml = html;
+            contentEl.innerHTML = html;
+        }
+
+        function renderEvents(events) {
+            allEvents = events || [];
+            if (!allEvents.length) {
+                commit(`<div class="no-events">🎉 暂无日程</div>`);
+                return;
+            }
+
+            // 全部渲染出来，多的靠滚动查看（不再是"只显示一屏"）
+            let html = '';
+            for (let i = 0; i < allEvents.length; i++) {
+                const ev = allEvents[i];
+                const color = /^#[0-9a-fA-F]{3,8}$/.test(ev.color || '') ? ev.color : '#4facfe';
+                const soon = isWithinHour(ev.start);
+
+                const startT = fmtTime(ev.start);
+                const allDay = startT === '00:00' && !ev.end;
+                let detail = fmtDate(ev.start) + (allDay ? ' 全天' : ' ' + startT);
+                if (ev.end && fmtTime(ev.end) !== '00:00') detail += '–' + fmtTime(ev.end);
+                const loc = ev.location
+                    ? ` <svg class="loc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${esc(ev.location)}`
+                    : '';
+                const tag = ev.calendarName
+                    ? `<span class="calendar-tag">${esc(ev.calendarName)}</span>`
+                    : '';
+
+                html += `
+                    <div class="event-item">
+                        <div class="color-dot ${soon ? 'breathing' : ''}" style="background:${color};color:${color};"></div>
+                        <div class="event-info">
+                            <div class="event-title-row">
+                                <div class="event-title">${esc(ev.summary || '无标题')}</div>
+                                ${tag}
+                            </div>
+                            <div class="event-detail">${detail}${loc}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            const before = lastHtml;
+            commit(html);
+            if (before !== html && !hasRenderedCards) {
+                hasRenderedCards = true;
+                contentEl.classList.add('enter');
+                setTimeout(() => contentEl.classList.remove('enter'), 300);
+            }
+        }
+
+        function renderError(message) {
+            commit(`<div class="no-events error">⚠️ ${esc(message)}</div>`);
+        }
+        function renderLoading() {
+            commit(`<div class="no-events loading">⏳ 加载中…</div>`);
+        }
+
+        // ---------- 数据 ----------
+        async function update() {
+            try {
+                const result = await api.getCalendarData();
+                if (result && result.error) return renderError(result.error);
+                renderEvents((result && result.events) || []);
+            } catch (e) {
+                renderError('读取失败: ' + e.message);
+            }
+        }
+
+        function manualRefresh() {
+            refreshBtn.classList.add('spin');
+            api.refreshCache();
+            setTimeout(() => refreshBtn.classList.remove('spin'), 6000);
+        }
+
+        if (api.onRefresh) {
+            api.onRefresh(() => {
+                refreshBtn.classList.remove('spin');
+                update();
+            });
+        }
+
+        refreshBtn.addEventListener('click', manualRefresh);
+        settingsBtn.addEventListener('click', () => api.openManageLinks());
+        layoutBtn.addEventListener('click', () => {
+            const single = contentEl.classList.contains('single-col');
+            api.setCompact(!single);
+        });
+        minimizeBtn.addEventListener('click', () => api.minimizeWindow());
+
+        // 面板现在是「全部渲染 + 滚动」，尺寸变化不需要重新计算条数，
+        // 也就彻底没有了「隐藏时被截成 1 条、显示时再铺满」的闪烁来源。
+        // 双列/单列只切换 CSS 栅格，不需要重绘 DOM。
+
+        if (api.onSettingsChanged) {
+            api.onSettingsChanged((e, s) => {
+                if (!s) return;
+                if ('compact' in s) applyCompact(s.compact);
+                if (s.theme) applyTheme(s.theme);
+                if (s.frost) applyFrost(s.frost);
+            });
+        }
+        if (api.onFrostChanged) api.onFrostChanged((e, f) => applyFrost(f));
+        if (api.onBgImageChanged) api.onBgImageChanged((e, dataUrl) => applyBgImage(dataUrl));
+
+        // ---------- 初始化 ----------
+        // 顺序很重要：先把主题 / 背景 / 磨砂 / 布局刷好，再通知主进程显示窗口，
+        // 否则窗口会先空一帧再重绘 —— 那就是「启动闪两下」的来源。
+        (async function init() {
+            const dataPromise = api.getCalendarData().catch(() => null);
+            let settings = null, bg = '';
+            try {
+                [settings, bg] = await Promise.all([
+                    api.getSettings().catch(() => null),
+                    api.getBgImage().catch(() => ''),
+                ]);
+            } catch (e) { /* 设置读不到就用默认 */ }
+
+            applyTheme((settings && settings.theme) || 'dark');
+            applyFrost((settings && settings.frost) || { bg: 0, card: 55 });
+            applyBgImage(bg || '');
+            applyCompact(settings && settings.compact);
+
+            // 缓存已经就绪时直接出内容，避免「加载中 → 列表」再闪一次
+            const first = await Promise.race([dataPromise, sleep(280).then(() => null)]);
+            if (first && !first.error) renderEvents(first.events || []);
+            else renderLoading();
+
+            await nextPaint();
+            api.panelReady();
+
+            if (!first) {
+                dataPromise.then((d) => {
+                    if (d && !d.error) renderEvents(d.events || []);
+                    else if (d && d.error) renderError(d.error);
+                });
+            }
+        })();
+
+        // 隐藏 = 整页透明度归零（窗口本身不 hide，避免重建合成表面导致的闪）
+        if (api.onPanelHidden) {
+            api.onPanelHidden((e, hidden) => {
+                document.body.classList.toggle('slot-hidden', !!hidden);
+            });
+        }
+    </script>
+</body>
+</html>
